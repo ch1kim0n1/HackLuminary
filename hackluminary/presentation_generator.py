@@ -41,11 +41,14 @@ class PresentationGenerator:
     
     def _generate_title_slide(self):
         """Generate the title slide."""
+        subtitle = self.doc_data.get('description', '')[:200]
+        if not subtitle:
+            subtitle = f"A {self.code_analysis['primary_language']} project"
+            
         return {
             'type': 'title',
             'title': self.doc_data['title'],
-            'subtitle': self.doc_data.get('description', '')[:200] or 
-                       f"A {self.code_analysis['primary_language']} project",
+            'subtitle': subtitle,
             'class': 'slide-title'
         }
     

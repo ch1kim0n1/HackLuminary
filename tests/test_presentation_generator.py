@@ -194,7 +194,7 @@ def test_generator_uses_custom_problem_and_solution():
     generator = PresentationGenerator(code_analysis, doc_data)
     html = generator.generate()
     
-    assert 'custom problem statement' in html
-    assert 'custom solution approach' in html
+    assert 'This is a custom problem statement' in html
+    assert 'This is a custom solution approach' in html
     assert 'Custom Feature 1' in html
     assert 'Custom Feature 2' in html

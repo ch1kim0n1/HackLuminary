@@ -37,6 +37,11 @@ class CodebaseAnalyzer:
         'vendor', 'target', 'bin', 'obj', '.vscode'
     }
     
+    KEY_FILE_NAMES = {
+        'main.py', 'app.py', 'index.js', 'main.js', 
+        'App.js', 'index.html', 'server.py', 'main.go'
+    }
+    
     def __init__(self, project_path):
         self.project_path = Path(project_path)
         self.languages = defaultdict(int)
@@ -92,8 +97,7 @@ class CodebaseAnalyzer:
                 self.total_lines += lines
                 
                 # Track key files
-                if file_path.name in ['main.py', 'app.py', 'index.js', 'main.js', 
-                                       'App.js', 'index.html', 'server.py', 'main.go']:
+                if file_path.name in self.KEY_FILE_NAMES:
                     self.key_files.append(str(file_path.relative_to(self.project_path)))
                     
             except Exception:

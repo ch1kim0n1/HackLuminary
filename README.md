@@ -2,7 +2,7 @@
 
 **CLI-first, local-only, deterministic tool for generating hackathon presentations**
 
-MindCore's open source hackathon oriented software. Based on the software and given documents, it will create a full presentation with graphics and slides, fully following hackathon's presentation requirements and chronological order.
+MindCore's open source hackathon-oriented software. It analyzes your codebase and documentation to create a full presentation with graphics and slides, following hackathon presentation requirements and chronological order.
 
 ## Features
 
