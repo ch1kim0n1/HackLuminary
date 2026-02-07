@@ -10,75 +10,82 @@ from .presentation_generator import PresentationGenerator
 
 
 @click.command()
-@click.option('--project-dir', type=click.Path(exists=True, file_okay=False, dir_okay=True),
-              required=True, help='Path to the project directory to analyze')
-@click.option('--output', type=click.Path(), default='presentation.html',
+@click.argument('project-dir', type=click.Path(exists=True, file_okay=False, dir_okay=True), required=False)
+@click.option('--output', '-o', type=click.Path(), default='presentation.html',
               help='Output file path (default: presentation.html)')
-@click.option('--format', 'fmt', type=click.Choice(['html', 'markdown', 'both', 'json']),
+@click.option('--format', '-f', 'fmt', type=click.Choice(['html', 'markdown', 'both', 'json']),
               default='both',
-              help='Output format: html, markdown, both, or json (default: both)')
-@click.option('--docs', type=click.Path(exists=True), multiple=True,
-              help='Additional documentation files to include')
-@click.option('--theme', type=click.Choice(['default', 'dark', 'minimal', 'colorful']),
-              default='default', help='Presentation visual theme (default: default)')
-@click.option('--theme-file', type=click.Path(exists=True), default=None,
-              help='Custom theme JSON file (overrides --theme)')
-@click.option('--html-template', type=click.Path(exists=True), default=None,
-              help='Custom Jinja2 HTML template file')
+              help='Output format (default: both - generates HTML and Markdown)')
 @click.option('--open', 'auto_open', is_flag=True, default=False,
               help='Auto-open the HTML presentation in browser')
-@click.option('--slides', default=None,
-              help='Comma-separated slide types to include (title,problem,solution,demo,impact,tech,future,closing)')
-@click.option('--max-slides', type=int, default=None,
-              help='Maximum number of slides (auto-selects most important)')
-def main(project_dir, output, fmt, docs, theme, theme_file, html_template, auto_open, slides, max_slides):
-    """Generate a hackathon presentation from a codebase.
+@click.option('--theme', type=click.Choice(['default', 'dark', 'minimal', 'colorful']),
+              default='default', help='Visual theme (default: default)')
+@click.option('--smart', is_flag=True, default=False, help='Enable AI-powered content enhancement')
+def main(project_dir, output, fmt, auto_open, theme, smart):
+    """Generate a hackathon presentation from your codebase.
 
-    This tool analyzes your project's codebase and documentation to create
-    a complete hackathon-ready presentation following standard judging flow:
-    Problem -> Solution -> Demo -> Impact -> Tech -> Future.
+    \b
+    Quick Start:
+      hackluminary .                    # Analyze current directory
+      hackluminary /path/to/project     # Analyze specific project
+      hackluminary . --open             # Generate and open in browser
+    
+    \b
+    Examples:
+      hackluminary . --format html --open
+      hackluminary ./my-app --output demo.html --theme dark
+      hackluminary . --format both
+    
+    The tool automatically analyzes your code and documentation to create
+    a complete presentation following the standard hackathon judging flow:
+    Problem → Solution → Features → Impact → Tech Stack → Future Plans
     """
+    
+    # Use current directory if not specified
+    if not project_dir:
+        project_dir = '.'
+        click.echo(f"Using current directory: {Path.cwd()}")
+    
     try:
         is_json = fmt == 'json'
         if not is_json:
-            click.echo(f"HackLuminary - Generating presentation for {project_dir}")
+            click.echo(f"\n🎬 HackLuminary - Generating presentation for {project_dir}\n")
 
         # Validate inputs
         project_path = Path(project_dir).resolve()
 
-        # Load custom theme if provided
+        # Load theme config
         theme_config = None
-        if theme_file:
-            theme_config = json.loads(Path(theme_file).read_text(encoding='utf-8'))
-        elif theme != 'default':
+        if theme != 'default':
             theme_config = _get_builtin_theme(theme)
 
         # Analyze codebase
         if not is_json:
-            click.echo("Analyzing codebase...")
+            click.echo("📊 Analyzing codebase...")
         analyzer = CodebaseAnalyzer(project_path)
         code_analysis = analyzer.analyze()
 
         # Parse documentation
         if not is_json:
-            click.echo("Parsing documentation...")
-        doc_parser = DocumentParser(project_path, list(docs))
+            click.echo("📝 Parsing documentation...")
+        doc_parser = DocumentParser(project_path, [])
         doc_data = doc_parser.parse()
 
-        # Parse slide selection
-        slide_types = None
-        if slides:
-            slide_types = [s.strip() for s in slides.split(',')]
+        # AI Enhancement
+        if smart and not is_json:
+            from .ml_engine import MLEngine
+            engine = MLEngine()
+            doc_data = engine.enhance_docs(doc_data, code_analysis)
 
         # Generate presentation
         if not is_json:
-            click.echo("Generating presentation...")
+            click.echo("🎨 Generating presentation...")
         generator = PresentationGenerator(
             code_analysis, doc_data,
             theme_config=theme_config,
-            slide_types=slide_types,
-            max_slides=max_slides,
-            html_template_path=html_template,
+            slide_types=None,
+            max_slides=None,
+            html_template_path=None,
         )
 
         # JSON output mode
@@ -112,6 +119,24 @@ def main(project_dir, output, fmt, docs, theme, theme_file, html_template, auto_
             md_path = output_path.with_suffix('.md') if fmt == 'both' else output_path
             md_path.write_text(markdown_output, encoding='utf-8')
             click.echo(f"Markdown presentation: {md_path}")
+
+        # Save to global output folder (../output)
+        try:
+            global_output_dir = Path("..").resolve() / "output"
+            global_output_dir.mkdir(exist_ok=True)
+            
+            if fmt in ['html', 'both'] and html_path:
+                global_html_path = global_output_dir / html_path.name
+                global_html_path.write_text(html_output, encoding='utf-8')
+                click.echo(f"Saved copy to: {global_html_path}")
+            
+            if fmt in ['markdown', 'both'] and md_path:
+                global_md_path = global_output_dir / md_path.name
+                global_md_path.write_text(markdown_output, encoding='utf-8')
+                click.echo(f"Saved copy to: {global_md_path}")
+                
+        except Exception as e:
+            click.echo(f"Warning: Could not save to global output: {e}", err=True)
 
         click.echo("Presentation generated successfully!")
 
