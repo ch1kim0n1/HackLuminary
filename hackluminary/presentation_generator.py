@@ -43,7 +43,11 @@ class PresentationGenerator:
         """Generate the title slide."""
         subtitle = self.doc_data.get('description', '')[:200]
         if not subtitle:
-            subtitle = f"A {self.code_analysis['primary_language']} project"
+            primary_lang = self.code_analysis['primary_language']
+            if primary_lang and primary_lang != 'Unknown':
+                subtitle = f"A {primary_lang} project"
+            else:
+                subtitle = "An innovative software project"
             
         return {
             'type': 'title',
@@ -70,8 +74,10 @@ class PresentationGenerator:
         """Generate the solution slide."""
         solution = self.doc_data.get('solution', '')
         if not solution:
+            primary_lang = self.code_analysis['primary_language']
+            lang_text = f"leveraging {primary_lang}" if primary_lang and primary_lang != 'Unknown' else "using modern technology"
             solution = f"{self.doc_data['title']} provides an innovative solution " \
-                      f"leveraging {self.code_analysis['primary_language']} and modern architecture " \
+                      f"{lang_text} and modern architecture " \
                       f"to solve these challenges efficiently."
         
         return {
@@ -85,12 +91,25 @@ class PresentationGenerator:
         """Generate the demo/features slide."""
         features = self.doc_data.get('features', [])
         if not features:
-            features = [
-                f"Clean {self.code_analysis['primary_language']} implementation",
-                f"{self.code_analysis['file_count']} files with {self.code_analysis['total_lines']:,} lines of code",
+            primary_lang = self.code_analysis['primary_language']
+            file_count = self.code_analysis['file_count']
+            total_lines = self.code_analysis['total_lines']
+            
+            features = []
+            if primary_lang and primary_lang != 'Unknown':
+                features.append(f"Clean {primary_lang} implementation")
+            elif file_count > 0:
+                features.append("Well-structured codebase")
+            else:
+                features.append("Innovative project concept")
+                
+            if file_count > 0:
+                features.append(f"{file_count} files with {total_lines:,} lines of code")
+            
+            features.extend([
                 "Modular and maintainable architecture",
                 "Easy to deploy and use"
-            ]
+            ])
         
         return {
             'type': 'list',
@@ -120,7 +139,15 @@ class PresentationGenerator:
         tech_items = []
         
         # Primary language
-        tech_items.append(f"**Language:** {self.code_analysis['primary_language']}")
+        primary_lang = self.code_analysis['primary_language']
+        if primary_lang and primary_lang != 'Unknown':
+            tech_items.append(f"**Language:** {primary_lang}")
+        
+        # Show all languages if multiple
+        languages = self.code_analysis.get('languages', {})
+        if len(languages) > 1:
+            lang_list = ', '.join([f"{lang} ({count})" for lang, count in sorted(languages.items(), key=lambda x: x[1], reverse=True)[:5]])
+            tech_items.append(f"**Languages:** {lang_list}")
         
         # Frameworks
         if self.code_analysis['frameworks']:
@@ -132,8 +159,18 @@ class PresentationGenerator:
             tech_items.append(f"**Dependencies:** {deps}")
         
         # Project stats
-        tech_items.append(f"**Scale:** {self.code_analysis['file_count']} files, "
-                         f"{self.code_analysis['total_lines']:,} lines")
+        file_count = self.code_analysis['file_count']
+        total_lines = self.code_analysis['total_lines']
+        if file_count > 0:
+            tech_items.append(f"**Scale:** {file_count} files, {total_lines:,} lines")
+        
+        # If no tech info, add generic items
+        if not tech_items:
+            tech_items = [
+                "**Modern Architecture**: Built with best practices",
+                "**Scalable Design**: Ready for growth",
+                "**Well-Documented**: Clear and comprehensive"
+            ]
         
         return {
             'type': 'list',

@@ -27,8 +27,47 @@ class CodebaseAnalyzer:
         '.html': 'HTML',
         '.css': 'CSS',
         '.scss': 'SCSS',
+        '.sass': 'Sass',
         '.vue': 'Vue',
         '.sql': 'SQL',
+        '.scala': 'Scala',
+        '.r': 'R',
+        '.m': 'MATLAB/Objective-C',
+        '.h': 'C/C++ Header',
+        '.hpp': 'C++ Header',
+        '.pl': 'Perl',
+        '.sh': 'Shell',
+        '.bash': 'Bash',
+        '.ps1': 'PowerShell',
+        '.dart': 'Dart',
+        '.lua': 'Lua',
+        '.clj': 'Clojure',
+        '.ex': 'Elixir',
+        '.exs': 'Elixir',
+        '.erl': 'Erlang',
+        '.hrl': 'Erlang',
+        '.hs': 'Haskell',
+        '.ml': 'OCaml',
+        '.elm': 'Elm',
+        '.jl': 'Julia',
+        '.nim': 'Nim',
+        '.v': 'V/Verilog',
+        '.vhd': 'VHDL',
+        '.vhdl': 'VHDL',
+        '.xml': 'XML',
+        '.json': 'JSON',
+        '.yaml': 'YAML',
+        '.yml': 'YAML',
+        '.toml': 'TOML',
+        '.md': 'Markdown',
+        '.rst': 'reStructuredText',
+        '.tex': 'LaTeX',
+    }
+    
+    # Common code file extensions for generic detection
+    CODE_EXTENSIONS = {
+        '.txt', '.cfg', '.conf', '.ini', '.properties',
+        '.gradle', '.gradle.kts', '.sbt', '.pom'
     }
     
     IGNORE_DIRS = {
@@ -39,7 +78,9 @@ class CodebaseAnalyzer:
     
     KEY_FILE_NAMES = {
         'main.py', 'app.py', 'index.js', 'main.js', 
-        'App.js', 'index.html', 'server.py', 'main.go'
+        'App.js', 'index.html', 'server.py', 'main.go',
+        'main.rs', 'main.cpp', 'main.c', 'main.java',
+        'index.php', 'main.rb', 'server.js', 'app.js'
     }
     
     def __init__(self, project_path):
@@ -57,12 +98,13 @@ class CodebaseAnalyzer:
         self._detect_frameworks()
         self._detect_dependencies()
         
-        if self.file_count == 0:
-            return None
-            
+        # Always return a result, even if no code files found
+        # This ensures the tool works with ANY project
+        primary_lang = self._get_primary_language()
+        
         return {
             'languages': dict(self.languages),
-            'primary_language': self._get_primary_language(),
+            'primary_language': primary_lang,
             'file_count': self.file_count,
             'total_lines': self.total_lines,
             'key_files': self.key_files,
@@ -86,6 +128,17 @@ class CodebaseAnalyzer:
         """Analyze a single file."""
         ext = file_path.suffix.lower()
         
+        # Skip binary and generated files
+        skip_extensions = {'.pyc', '.pyo', '.exe', '.dll', '.so', '.dylib', 
+                          '.class', '.jar', '.war', '.ear', '.o', '.a',
+                          '.pdf', '.doc', '.docx', '.xls', '.xlsx',
+                          '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg',
+                          '.mp3', '.mp4', '.avi', '.mov', '.zip', '.tar', '.gz'}
+        
+        if ext in skip_extensions:
+            return
+        
+        # Analyze recognized languages
         if ext in self.LANGUAGE_EXTENSIONS:
             try:
                 with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -100,6 +153,20 @@ class CodebaseAnalyzer:
                 if file_path.name in self.KEY_FILE_NAMES:
                     self.key_files.append(str(file_path.relative_to(self.project_path)))
                     
+            except Exception:
+                pass
+        # Also count files with common code-related extensions or no extension
+        elif ext in self.CODE_EXTENSIONS or (ext == '' and not file_path.name.startswith('.')):
+            try:
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                    # Basic heuristic: if file has reasonable content, count it
+                    if content.strip() and len(content) < 1000000:  # Skip very large files
+                        lines = len(content.splitlines())
+                        if lines > 0:
+                            self.languages['Other'] += 1
+                            self.file_count += 1
+                            self.total_lines += lines
             except Exception:
                 pass
     

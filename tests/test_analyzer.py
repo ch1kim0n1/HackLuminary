@@ -104,13 +104,16 @@ def test_analyzer_detects_requirements_txt():
         assert 'requests' in result['dependencies']
 
 
-def test_analyzer_returns_none_for_empty_directory():
-    """Test that analyzer returns None for empty directory."""
+def test_analyzer_returns_result_for_empty_directory():
+    """Test that analyzer returns result even for empty directory."""
     with tempfile.TemporaryDirectory() as tmpdir:
         analyzer = CodebaseAnalyzer(tmpdir)
         result = analyzer.analyze()
         
-        assert result is None
+        assert result is not None
+        assert result['file_count'] == 0
+        assert result['primary_language'] == 'Unknown'
+        assert result['project_name'] == Path(tmpdir).name
 
 
 def test_analyzer_tracks_key_files():

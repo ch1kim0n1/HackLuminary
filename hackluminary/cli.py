@@ -36,10 +36,6 @@ def main(project_dir, output, docs):
         analyzer = CodebaseAnalyzer(project_path)
         code_analysis = analyzer.analyze()
         
-        if not code_analysis:
-            click.echo("❌ Error: Failed to analyze codebase - no recognizable code found", err=True)
-            sys.exit(1)
-        
         # Parse documentation
         click.echo("📄 Parsing documentation...")
         doc_parser = DocumentParser(project_path, list(docs))
