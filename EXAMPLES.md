@@ -19,7 +19,51 @@ This creates `presentation.html` in the current directory.
 hackluminary --project-dir ./my-app --output demo-day-presentation.html
 ```
 
-## Example 3: With Additional Documentation
+## Example 3: Auto-Open in Browser
+
+Generate and immediately view the presentation:
+
+```bash
+hackluminary --project-dir . --output pitch.html --open
+```
+
+## Example 4: Quick 5-Slide Pitch
+
+Generate a concise presentation with only the most important slides:
+
+```bash
+hackluminary --project-dir . --max-slides 5 --open
+```
+
+This automatically selects: title, problem, solution, demo, tech, and closing (in priority order).
+
+## Example 5: Custom Slide Selection
+
+Choose exactly which slides to include:
+
+```bash
+# Investor pitch (problem-focused)
+hackluminary --project-dir . --slides title,problem,solution,impact,closing
+
+# Technical demo (tech-focused)
+hackluminary --project-dir . --slides title,demo,tech,future,closing
+
+# Quick overview (minimal)
+hackluminary --project-dir . --slides title,solution,demo,closing
+```
+
+Available slide types:
+
+- `title` - Project name and description
+- `problem` - Problem statement
+- `solution` - Your solution
+- `demo` - Key features
+- `impact` - Benefits and impact
+- `tech` - Technology stack
+- `future` - Future plans
+- `closing` - Thank you slide
+
+## Example 6: With Additional Documentation
 
 ```bash
 hackluminary --project-dir . \
@@ -37,6 +81,7 @@ hackluminary --project-dir . --output tech-stack-presentation.html
 ```
 
 HackLuminary will automatically:
+
 - Detect Python files in `/backend` or `/server`
 - Detect JavaScript/React files in `/frontend` or `/client`
 - Parse `requirements.txt` and `package.json`
@@ -76,9 +121,9 @@ How does your project solve it?
 
 ## Features
 
-* Feature 1
-* Feature 2
-* Feature 3
+- Feature 1
+- Feature 2
+- Feature 3
 
 ## Installation
 
@@ -107,6 +152,7 @@ HackLuminary generates a presentation with these slides:
 ### 1. Write a Good README
 
 The better your README, the better your presentation:
+
 - Clear problem statement
 - Detailed solution description
 - Bullet-pointed features
@@ -121,6 +167,7 @@ The better your README, the better your presentation:
 ### 3. Add Documentation
 
 Include additional docs for deeper technical content:
+
 - `ARCHITECTURE.md` for system design
 - `TECHNICAL.md` for implementation details
 - `DESIGN.md` for UX/UI decisions
@@ -154,6 +201,7 @@ hackluminary --project-dir taskmaster-pro --output demo.html
 ```
 
 The generated presentation automatically included:
+
 - Project name and description from README
 - Problem statement from README
 - Solution approach from README
@@ -175,6 +223,7 @@ $ hackluminary --project-dir empty-folder
 ### Problem: README not found
 
 If you don't have a README, HackLuminary will:
+
 - Use the directory name as the project title
 - Auto-generate generic problem/solution statements
 - List detected features from code structure

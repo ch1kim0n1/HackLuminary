@@ -91,17 +91,17 @@ class CodebaseAnalyzer:
         self.key_files = []
         self.dependencies = []
         self.frameworks = []
+        self.features = []
         
     def analyze(self):
         """Analyze the entire codebase."""
         self._scan_directory(self.project_path)
         self._detect_frameworks()
         self._detect_dependencies()
+        self._detect_features()
         
-        # Always return a result, even if no code files found
-        # This ensures the tool works with ANY project
         primary_lang = self._get_primary_language()
-        
+
         return {
             'languages': dict(self.languages),
             'primary_language': primary_lang,
@@ -110,8 +110,39 @@ class CodebaseAnalyzer:
             'key_files': self.key_files,
             'dependencies': self.dependencies,
             'frameworks': self.frameworks,
+            'features': self.features,
             'project_name': self.project_path.name,
         }
+        
+    def _detect_features(self):
+        """Detect high-level features/capabilities by scanning code and files."""
+        feature_patterns = {
+            'Authentication': ['auth', 'login', 'signup', 'passport', 'jwt', 'oauth'],
+            'Database': ['database', 'sqlite', 'mongodb', 'postgres', 'mysql', 'prisma', 'mongoose'],
+            'Payments': ['stripe', 'paypal', 'payment', 'checkout', 'billing'],
+            'AI/Machine Learning': ['openai', 'tensor', 'pytorch', 'langchain', 'model', 'llm'],
+            'Real-time': ['socket.io', 'websocket', 'pusher', 'realtime'],
+            'Analytics': ['google analytics', 'mixpanel', 'segment', 'tracking'],
+            'Email': ['sendgrid', 'nodemailer', 'mailgun', 'smtp'],
+            'Storage': ['aws s3', 'cloudinary', 'upload', 'storage', 'blob']
+        }
+
+        # Scan README first
+        readme = self.project_path / 'README.md'
+        content = ""
+        if readme.exists():
+            content += readme.read_text(encoding='utf-8', errors='ignore').lower()
+
+        # Scan key files
+        for key_file in self.key_files[:5]:
+            p = self.project_path / key_file
+            if p.exists():
+                content += p.read_text(encoding='utf-8', errors='ignore').lower()
+
+        for feature, patterns in feature_patterns.items():
+            if any(pattern in content for pattern in patterns):
+                if feature not in self.features:
+                    self.features.append(feature)
     
     def _scan_directory(self, directory):
         """Recursively scan directory for code files."""
@@ -158,15 +189,27 @@ class CodebaseAnalyzer:
         # Also count files with common code-related extensions or no extension
         elif ext in self.CODE_EXTENSIONS or (ext == '' and not file_path.name.startswith('.')):
             try:
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-                    # Basic heuristic: if file has reasonable content, count it
-                    if content.strip() and len(content) < 1000000:  # Skip very large files
-                        lines = len(content.splitlines())
-                        if lines > 0:
-                            self.languages['Other'] += 1
-                            self.file_count += 1
-                            self.total_lines += lines
+                # Security/Stability: Check file size before reading to prevent OOM
+                if file_path.stat().st_size > 1_000_000:
+                    return
+
+                # Read as binary first to detect non-text files
+                with open(file_path, 'rb') as f:
+                    raw_content = f.read()
+
+                # Skip binary files (heuristic: contains null byte)
+                if b'\0' in raw_content:
+                    return
+
+                content = raw_content.decode('utf-8', errors='ignore')
+                
+                # Basic heuristic: if file has reasonable content, count it
+                if content.strip():
+                    lines = len(content.splitlines())
+                    if lines > 0:
+                        self.languages['Other'] += 1
+                        self.file_count += 1
+                        self.total_lines += lines
             except Exception:
                 pass
     

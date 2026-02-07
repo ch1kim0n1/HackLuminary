@@ -7,10 +7,9 @@ setup(
     author="MindCore",
     packages=find_packages(),
     install_requires=[
-        "click>=8.0.0",
-        "Jinja2>=3.0.0",
-        "Markdown>=3.3.0",
-        "Pillow>=9.0.0",
+        "click>=8.0.0,<9",
+        "Jinja2>=3.0.0,<4",
+        "Markdown>=3.3.0,<4",
     ],
     entry_points={
         "console_scripts": [

@@ -1,0 +1,76 @@
+---
+marp: true
+theme: default
+paginate: true
+---
+
+# HackLuminary
+
+**CLI-first, local-only, deterministic tool for generating hackathon presentations**
+
+MindCore's open source hackathon-oriented software. It analyzes your codebase and documentation to create a full p
+---
+
+## 🎯 The Problem
+
+Traditional solutions lack efficiency and modern capabilities. We identified key challenges in the domain that need addressing.
+---
+
+## 💡 Our Solution
+
+1. **Codebase Analysis**: Scans your project directory to identify:
+   - Programming languages used
+   - Frameworks and dependencies
+   - Project structure and scale
+   - Key files and entry points
+
+2. **Documentation Parsing**: Extracts information from:
+   - README.md (title, description, features, etc.)
+   - Additional documentation files
+   - Problem/solution statements
+   - Installation and usage instructions
+
+3. **Presentation Generation**: Creates a complete HTML presentation with:
+   - B
+---
+
+## 🚀 Key Features
+
+- ✅ **CLI-First**: Simple command-line interface, no GUI required
+- ✅ **Local-Only**: Runs entirely on your machine, no cloud dependencies
+- ✅ **Deterministic**: Same input always produces the same output
+- ✅ **No 3rd Party APIs**: Works completely offline
+- ✅ **Fail-Fast**: Clear error messages on missing or invalid data
+- ✅ **Hackathon-Ready**: Follows standard judging flow (Problem → Solution → Demo → Impact → Tech → Future)
+- ✅ **Multi-Language Support**: Analyzes Python, JavaScript, TypeScript, Java, Go, Rust, and more
+- ✅ **Beautiful Output**: Generates modern, visually appealing HTML presentations
+
+---
+
+## 📈 Impact & Benefits
+
+
+---
+
+## 🔧 Technology Stack
+
+- **Language:** Python
+- **Languages:** Python (10), Markdown (3), Other (1), HTML (1)
+- **Dependencies:** click, Jinja2, Markdown, Pillow
+- **Scale:** 15 files, 2,687 lines
+
+---
+
+## 🔮 Future Plans
+
+- Enhance features based on user feedback
+- Optimize performance and scalability
+- Expand platform compatibility
+- Build community and ecosystem
+- Add advanced analytics and insights
+
+---
+
+# Thank You!
+
+HackLuminary - Built with Python

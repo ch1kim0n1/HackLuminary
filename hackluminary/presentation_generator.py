@@ -4,41 +4,60 @@ from jinja2 import Template
 
 class PresentationGenerator:
     """Generates a complete hackathon presentation."""
-    
-    def __init__(self, code_analysis, doc_data):
+
+    # Default slide order (all available types)
+    ALL_SLIDE_TYPES = [
+        'title', 'problem', 'solution', 'demo',
+        'impact', 'tech', 'future', 'closing',
+    ]
+
+    # Priority order for --max-slides (most important first)
+    PRIORITY_ORDER = [
+        'title', 'problem', 'solution', 'demo',
+        'tech', 'closing', 'impact', 'future',
+    ]
+
+    def __init__(self, code_analysis, doc_data, theme_config=None,
+                 slide_types=None, max_slides=None, html_template_path=None):
         self.code_analysis = code_analysis
         self.doc_data = doc_data
-        
+        self.theme_config = theme_config
+        self.html_template_path = html_template_path
+        self.slide_types = self._resolve_slide_types(slide_types, max_slides)
+
+    def _resolve_slide_types(self, slide_types, max_slides):
+        """Determine which slides to include based on user options."""
+        if slide_types:
+            # User explicitly listed which slides they want
+            return [t for t in slide_types if t in self.ALL_SLIDE_TYPES]
+        if max_slides and max_slides < len(self.ALL_SLIDE_TYPES):
+            # Pick the top N by priority, then reorder to presentation flow
+            selected = set(self.PRIORITY_ORDER[:max_slides])
+            return [t for t in self.ALL_SLIDE_TYPES if t in selected]
+        return list(self.ALL_SLIDE_TYPES)
+
+    def _build_slides(self):
+        """Build the slide list based on selected types."""
+        generators = {
+            'title': self._generate_title_slide,
+            'problem': self._generate_problem_slide,
+            'solution': self._generate_solution_slide,
+            'demo': self._generate_demo_slide,
+            'impact': self._generate_impact_slide,
+            'tech': self._generate_tech_slide,
+            'future': self._generate_future_slide,
+            'closing': self._generate_closing_slide,
+        }
+        return [generators[t]() for t in self.slide_types]
+
     def generate(self):
         """Generate the complete HTML presentation."""
-        slides = []
-        
-        # Slide 1: Title
-        slides.append(self._generate_title_slide())
-        
-        # Slide 2: Problem
-        slides.append(self._generate_problem_slide())
-        
-        # Slide 3: Solution
-        slides.append(self._generate_solution_slide())
-        
-        # Slide 4: Demo/Features
-        slides.append(self._generate_demo_slide())
-        
-        # Slide 5: Impact
-        slides.append(self._generate_impact_slide())
-        
-        # Slide 6: Technology Stack
-        slides.append(self._generate_tech_slide())
-        
-        # Slide 7: Future Plans
-        slides.append(self._generate_future_slide())
-        
-        # Slide 8: Thank You
-        slides.append(self._generate_closing_slide())
-        
-        return self._render_html(slides)
-    
+        return self._render_html(self._build_slides())
+
+    def get_slides_data(self):
+        """Return raw slide data as a list of dicts (for JSON output)."""
+        return self._build_slides()
+
     def _generate_title_slide(self):
         """Generate the title slide."""
         subtitle = self.doc_data.get('description', '')[:200]
@@ -89,32 +108,35 @@ class PresentationGenerator:
     
     def _generate_demo_slide(self):
         """Generate the demo/features slide."""
-        features = self.doc_data.get('features', [])
+        features = list(self.doc_data.get('features', []))
+        detected_features = self.code_analysis.get('features', [])
+
+        # Merge detected features if not already in list
+        for df in detected_features:
+            if df not in features:
+                features.append(df)
+
         if not features:
             primary_lang = self.code_analysis['primary_language']
-            file_count = self.code_analysis['file_count']
-            total_lines = self.code_analysis['total_lines']
-            
+            file_count = self.code_analysis.get('file_count', 0)
+            total_lines = self.code_analysis.get('total_lines', 0)
             features = []
             if primary_lang and primary_lang != 'Unknown':
                 features.append(f"Clean {primary_lang} implementation")
-            elif file_count > 0:
+            if file_count > 0:
                 features.append("Well-structured codebase")
+                features.append(f"{file_count} files with {total_lines:,} lines of code")
             else:
                 features.append("Innovative project concept")
-                
-            if file_count > 0:
-                features.append(f"{file_count} files with {total_lines:,} lines of code")
-            
             features.extend([
                 "Modular and maintainable architecture",
                 "Easy to deploy and use"
             ])
-        
+
         return {
             'type': 'list',
             'title': '🚀 Key Features',
-            'list_items': features,
+            'list_items': features[:6],
             'class': 'slide-demo'
         }
     
@@ -139,7 +161,7 @@ class PresentationGenerator:
         tech_items = []
         
         # Primary language
-        primary_lang = self.code_analysis['primary_language']
+        primary_lang = self.code_analysis.get('primary_language', 'Unknown')
         if primary_lang and primary_lang != 'Unknown':
             tech_items.append(f"**Language:** {primary_lang}")
         
@@ -206,13 +228,120 @@ class PresentationGenerator:
         }
     
     def _render_html(self, slides):
-        """Render slides into HTML."""
-        template = Template(self._get_html_template())
-        return template.render(slides=slides, project_name=self.doc_data['title'], 
-                               total_slides=len(slides))
+        """Render slides into Reveal.js HTML."""
+        slide_html = ""
+        for slide in slides:
+            type_ = slide.get('type')
+            title = slide.get('title', '')
+            
+            if type_ == 'title':
+                slide_html += f"""
+                <section>
+                    <h1 class="r-fit-text">{title}</h1>
+                    <h3 class="fragment fade-up">{slide.get('subtitle', '')}</h3>
+                </section>"""
+            elif type_ == 'list' or type_ == 'demo' or type_ == 'future' or type_ == 'tech':
+                items = "".join([f"<li class='fragment'>{item}</li>" for item in slide.get('list_items', [])])
+                slide_html += f"""
+                <section>
+                    <h2>{title}</h2>
+                    <ul>{items}</ul>
+                </section>"""
+            elif type_ == 'content' or type_ == 'problem' or type_ == 'solution':
+                slide_html += f"""
+                <section>
+                    <h2>{title}</h2>
+                    <p class="fragment">{slide.get('content', '')}</p>
+                </section>"""
+            elif type_ == 'closing':
+                slide_html += f"""
+                <section>
+                    <h1>{title}</h1>
+                    <p>{slide.get('subtitle', '')}</p>
+                    <small>Generated by MindCore · Luminary</small>
+                </section>"""
+        
+        # Add Architecture Slide (Mermaid) - Simplified inference
+        slide_html += """
+        <section>
+            <h2>Architecture</h2>
+            <div class="mermaid">
+                graph LR
+                A[User] -->|Browser/Mobile| B[Frontend]
+                B -->|HTTP/REST| C[Backend API]
+                C -->|SQL/NoSQL| D[(Database)]
+            </div>
+        </section>
+        """
+
+        return f"""
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>{self.doc_data['title']} - MindCore Presentation</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/reveal.css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/theme/black.css">
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+        <style>
+            .reveal h1, .reveal h2, .reveal h3 { text-transform: none; }
+            .mermaid { background: white; padding: 20px; border-radius: 10px; }
+        </style>
+    </head>
+    <body>
+        <div class="reveal">
+            <div class="slides">
+                {slide_html}
+            </div>
+        </div>
+        <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/reveal.js"></script>
+        <script>
+            Reveal.initialize({
+                controls: true,
+                progress: true,
+                center: true,
+                hash: true,
+                transition: 'convex',
+                autoAnimate: true
+            });
+            mermaid.initialize({ startOnLoad: true, theme: 'default' });
+        </script>
+    </body>
+</html>"""
+    
+    def generate_markdown(self):
+        """Generate a Marp-compatible Markdown presentation."""
+        slides = self._build_slides()
+        markdown = ["---\nmarp: true\ntheme: default\npaginate: true\n---\n\n"]
+
+        for slide in slides:
+            title = slide.get('title', '')
+            markdown.append("---\n\n")
+
+            if slide.get('type') in ['title', 'closing']:
+                markdown.append(f"# {title}\n\n{slide.get('subtitle', '')}\n")
+                continue
+
+            markdown.append(f"## {title}\n\n")
+            if slide.get('type') == 'content':
+                markdown.append(f"{slide.get('content', '')}\n")
+            elif slide.get('type') == 'list':
+                for item in slide.get('list_items', []):
+                    markdown.append(f"- {item}\n")
+
+        return ''.join(markdown)
     
     def _get_html_template(self):
         """Get the HTML template for the presentation."""
+        if self.html_template_path:
+            from pathlib import Path
+            try:
+                return Path(self.html_template_path).read_text(encoding='utf-8')
+            except Exception as e:
+                print(f"Warning: Failed to load template from {self.html_template_path}: {e}")
+                # Fall through to default
+
         return '''<!DOCTYPE html>
 <html lang="en">
 <head>

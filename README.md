@@ -46,6 +46,34 @@ Specify a custom output file:
 hackluminary --project-dir /path/to/your/project --output my-presentation.html
 ```
 
+### Auto-Open in Browser
+
+Generate and automatically open the presentation:
+
+```bash
+hackluminary --project-dir /path/to/your/project --open
+```
+
+### Select Specific Slides
+
+Choose which slides to include:
+
+```bash
+# Include only title, problem, solution, and demo slides
+hackluminary --project-dir /path/to/your/project --slides title,problem,solution,demo
+```
+
+Available slide types: `title`, `problem`, `solution`, `demo`, `impact`, `tech`, `future`, `closing`
+
+### Limit Number of Slides
+
+Automatically select the most important slides:
+
+```bash
+# Generate a 5-slide presentation (picks most important slides)
+hackluminary --project-dir /path/to/your/project --max-slides 5
+```
+
 ### Include Additional Documentation
 
 Include additional documentation files:
@@ -60,10 +88,14 @@ hackluminary --project-dir /path/to/your/project --docs OVERVIEW.md --docs TECHN
 # Generate presentation for the HackLuminary project itself
 hackluminary --project-dir . --output hackluminary-presentation.html
 
-# Open in browser
-open hackluminary-presentation.html  # macOS
-xdg-open hackluminary-presentation.html  # Linux
-start hackluminary-presentation.html  # Windows
+# Generate and auto-open in browser
+hackluminary --project-dir . --output hackluminary-presentation.html --open
+
+# Generate a quick 5-slide pitch deck
+hackluminary --project-dir . --max-slides 5 --open
+
+# Custom slide selection for investor pitch
+hackluminary --project-dir . --slides title,problem,solution,impact,closing --open
 ```
 
 ## Presentation Structure
@@ -149,31 +181,37 @@ HackLuminary/
 ## Design Principles
 
 ### 1. CLI-First
+
 - Command-line interface is the primary way to interact
 - Simple, intuitive command structure
 - Clear help text and error messages
 
 ### 2. Local-Only
+
 - All processing happens on your machine
 - No data sent to external services
 - Works completely offline
 
 ### 3. Deterministic
+
 - Same input always produces same output
 - No randomness or variability
 - Predictable and reliable
 
 ### 4. No 3rd Party APIs
+
 - No dependencies on external services
 - No API keys or authentication required
 - Complete privacy and security
 
 ### 5. Fail-Fast
+
 - Validates inputs immediately
 - Clear error messages
 - Fails early on missing or invalid data
 
 ### 6. Immediately Usable Output
+
 - Generates ready-to-use HTML files
 - No post-processing required
 - Open directly in any browser
@@ -209,12 +247,15 @@ HackLuminary can analyze projects written in:
 ## Troubleshooting
 
 ### Error: Project directory does not exist
+
 Make sure the path you provide exists and is accessible.
 
 ### Error: Failed to analyze codebase - no recognizable code found
+
 Ensure your project directory contains code files with supported extensions.
 
 ### Presentation looks broken
+
 Make sure you're opening the HTML file in a modern web browser (Chrome, Firefox, Safari, Edge).
 
 ## License
