@@ -1,204 +1,350 @@
-"""CLI interface for HackLuminary."""
-import click
-import sys
+"""HackLuminary v2 CLI."""
+
+from __future__ import annotations
+
 import json
+import shutil
+import sys
+import traceback
 import webbrowser
 from pathlib import Path
-from .analyzer import CodebaseAnalyzer
-from .document_parser import DocumentParser
-from .presentation_generator import PresentationGenerator
+
+import click
+
+from . import __version__
+from .errors import ErrorCode, HackLuminaryError
+from .models import install_model, list_models
+from .pipeline import run_generation, run_validation
+from .studio_server import run_studio_server
 
 
-@click.command()
-@click.argument('project-dir', type=click.Path(exists=True, file_okay=False, dir_okay=True), required=False)
-@click.option('--output', '-o', type=click.Path(), default='presentation.html',
-              help='Output file path (default: presentation.html)')
-@click.option('--format', '-f', 'fmt', type=click.Choice(['html', 'markdown', 'both', 'json']),
-              default='both',
-              help='Output format (default: both - generates HTML and Markdown)')
-@click.option('--open', 'auto_open', is_flag=True, default=False,
-              help='Auto-open the HTML presentation in browser')
-@click.option('--theme', type=click.Choice(['default', 'dark', 'minimal', 'colorful']),
-              default='default', help='Visual theme (default: default)')
-@click.option('--smart', is_flag=True, default=False, help='Enable AI-powered content enhancement')
-def main(project_dir, output, fmt, auto_open, theme, smart):
-    """Generate a hackathon presentation from your codebase.
+def _normalize_legacy_args(argv: list[str]) -> list[str]:
+    """Support old top-level usage by rewriting it to `generate ...`."""
 
-    \b
-    Quick Start:
-      hackluminary .                    # Analyze current directory
-      hackluminary /path/to/project     # Analyze specific project
-      hackluminary . --open             # Generate and open in browser
-    
-    \b
-    Examples:
-      hackluminary . --format html --open
-      hackluminary ./my-app --output demo.html --theme dark
-      hackluminary . --format both
-    
-    The tool automatically analyzes your code and documentation to create
-    a complete presentation following the standard hackathon judging flow:
-    Problem → Solution → Features → Impact → Tech Stack → Future Plans
-    """
-    
-    # Use current directory if not specified
-    if not project_dir:
-        project_dir = '.'
-        click.echo(f"Using current directory: {Path.cwd()}")
-    
-    try:
-        is_json = fmt == 'json'
-        if not is_json:
-            click.echo(f"\n🎬 HackLuminary - Generating presentation for {project_dir}\n")
+    if not argv:
+        return ["generate"]
 
-        # Validate inputs
-        project_path = Path(project_dir).resolve()
+    top_level = {"generate", "validate", "models", "studio", "--help", "-h", "--version"}
+    if argv[0] in top_level:
+        return argv
 
-        # Load theme config
-        theme_config = None
-        if theme != 'default':
-            theme_config = _get_builtin_theme(theme)
-
-        # Analyze codebase
-        if not is_json:
-            click.echo("📊 Analyzing codebase...")
-        analyzer = CodebaseAnalyzer(project_path)
-        code_analysis = analyzer.analyze()
-
-        # Parse documentation
-        if not is_json:
-            click.echo("📝 Parsing documentation...")
-        doc_parser = DocumentParser(project_path, [])
-        doc_data = doc_parser.parse()
-
-        # AI Enhancement
-        if smart and not is_json:
-            from .ml_engine import MLEngine
-            engine = MLEngine()
-            doc_data = engine.enhance_docs(doc_data, code_analysis)
-
-        # Generate presentation
-        if not is_json:
-            click.echo("🎨 Generating presentation...")
-        generator = PresentationGenerator(
-            code_analysis, doc_data,
-            theme_config=theme_config,
-            slide_types=None,
-            max_slides=None,
-            html_template_path=None,
-        )
-
-        # JSON output mode
-        if is_json:
-            result = {
-                "slides": generator.get_slides_data(),
-                "metadata": {
-                    "project": doc_data.get('title', ''),
-                    "languages": code_analysis.get('languages', {}),
-                    "dependencies": code_analysis.get('dependencies', []),
-                    "frameworks": code_analysis.get('frameworks', []),
-                    "file_count": code_analysis.get('file_count', 0),
-                    "total_lines": code_analysis.get('total_lines', 0),
-                }
-            }
-            click.echo(json.dumps(result, indent=2))
-            return
-
-        # Write output based on format
-        output_path = Path(output).resolve()
-        html_path = None
-
-        if fmt in ['html', 'both']:
-            html_output = generator.generate()
-            html_path = output_path if fmt == 'html' else output_path.with_suffix('.html')
-            html_path.write_text(html_output, encoding='utf-8')
-            click.echo(f"HTML presentation: {html_path}")
-
-        if fmt in ['markdown', 'both']:
-            markdown_output = generator.generate_markdown()
-            md_path = output_path.with_suffix('.md') if fmt == 'both' else output_path
-            md_path.write_text(markdown_output, encoding='utf-8')
-            click.echo(f"Markdown presentation: {md_path}")
-
-        # Save to global output folder (../output)
-        try:
-            global_output_dir = Path("..").resolve() / "output"
-            global_output_dir.mkdir(exist_ok=True)
-            
-            if fmt in ['html', 'both'] and html_path:
-                global_html_path = global_output_dir / html_path.name
-                global_html_path.write_text(html_output, encoding='utf-8')
-                click.echo(f"Saved copy to: {global_html_path}")
-            
-            if fmt in ['markdown', 'both'] and md_path:
-                global_md_path = global_output_dir / md_path.name
-                global_md_path.write_text(markdown_output, encoding='utf-8')
-                click.echo(f"Saved copy to: {global_md_path}")
-                
-        except Exception as e:
-            click.echo(f"Warning: Could not save to global output: {e}", err=True)
-
-        click.echo("Presentation generated successfully!")
-
-        if auto_open and html_path and html_path.exists():
-            webbrowser.open(str(html_path))
-
-        if fmt in ['markdown', 'both']:
-            click.echo("Tip: Open the .md file in VS Code with Marp extension for live preview")
-
-    except Exception as e:
-        click.echo(f"Error: {str(e)}", err=True)
-        sys.exit(1)
+    return ["generate", *argv]
 
 
-def _get_builtin_theme(name):
-    """Return a built-in theme configuration."""
-    themes = {
-        'dark': {
-            'background': '#0f0f0f',
-            'text': '#ffffff',
-            'gradients': [
-                'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
-                'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-                'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-                'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-                'linear-gradient(135deg, #30cfd0 0%, #330867 100%)',
-                'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
-            ],
+def _resolve_project_dir(project_dir_arg: str | None, project_dir_opt: str | None) -> str:
+    if project_dir_arg and project_dir_opt:
+        if Path(project_dir_arg).resolve() != Path(project_dir_opt).resolve():
+            raise HackLuminaryError(
+                ErrorCode.INVALID_INPUT,
+                "Both positional project_dir and --project-dir were provided with different values.",
+            )
+    return project_dir_opt or project_dir_arg or "."
+
+
+def _parse_slide_types(raw: str | None) -> list[str] | None:
+    if not raw:
+        return None
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def _build_overrides(
+    fmt: str | None,
+    theme: str | None,
+    mode: str | None,
+    base_branch: str | None,
+    no_branch_context: bool,
+    strict_quality: bool | None,
+    copy_output_dir: str | None,
+    auto_open: bool,
+) -> dict:
+    overrides = {
+        "general": {
+            "format": fmt,
+            "theme": theme,
+            "mode": mode,
+            "strict_quality": strict_quality,
         },
-        'minimal': {
-            'background': '#ffffff',
-            'text': '#1a1a2e',
-            'gradients': [
-                'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
-                'linear-gradient(135deg, #e2e8f0 0%, #edf2f7 100%)',
-                'linear-gradient(135deg, #fafafa 0%, #e5e5e5 100%)',
-                'linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%)',
-                'linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%)',
-                'linear-gradient(135deg, #edf2f7 0%, #e2e8f0 100%)',
-                'linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%)',
-                'linear-gradient(135deg, #fafafa 0%, #f0f0f0 100%)',
-            ],
+        "git": {
+            "base_branch": base_branch,
+            "include_branch_context": None if not no_branch_context else False,
         },
-        'colorful': {
-            'background': '#0f0f0f',
-            'text': '#ffffff',
-            'gradients': [
-                'linear-gradient(135deg, #ff6b6b 0%, #feca57 100%)',
-                'linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%)',
-                'linear-gradient(135deg, #fd79a8 0%, #e84393 100%)',
-                'linear-gradient(135deg, #00cec9 0%, #0984e3 100%)',
-                'linear-gradient(135deg, #55efc4 0%, #00b894 100%)',
-                'linear-gradient(135deg, #fdcb6e 0%, #e17055 100%)',
-                'linear-gradient(135deg, #74b9ff 0%, #0984e3 100%)',
-                'linear-gradient(135deg, #dfe6e9 0%, #b2bec3 100%)',
-            ],
+        "output": {
+            "copy_output_dir": copy_output_dir,
+            "open_after_generate": auto_open,
         },
     }
-    return themes.get(name)
+    return overrides
 
 
-if __name__ == '__main__':
+def _copy_outputs(copy_output_dir: str | None, html_path: Path | None, md_path: Path | None, json_path: Path | None) -> None:
+    if not copy_output_dir:
+        return
+
+    target_dir = Path(copy_output_dir).resolve()
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    for file_path in [html_path, md_path, json_path]:
+        if file_path and file_path.exists():
+            shutil.copy2(file_path, target_dir / file_path.name)
+
+
+@click.group(help="HackLuminary v2 - offline-first, branch-aware presentation generator.")
+@click.version_option(version=__version__)
+def cli() -> None:
+    pass
+
+
+@cli.command("generate")
+@click.argument("project_dir", required=False)
+@click.option("--project-dir", "project_dir_opt", type=click.Path(exists=True, file_okay=False, dir_okay=True))
+@click.option("--output", "output", type=click.Path(), default="presentation.html", show_default=True)
+@click.option("--format", "fmt", type=click.Choice(["html", "markdown", "json", "both"]), default=None)
+@click.option("--slides", type=str, default=None, help="Comma-separated slide ids.")
+@click.option("--max-slides", type=click.IntRange(min=1), default=None)
+@click.option("--docs", "docs", multiple=True, type=click.Path(), help="Additional docs within project.")
+@click.option("--theme", type=click.Choice(["default", "dark", "minimal", "colorful", "auto"]), default=None)
+@click.option("--mode", type=click.Choice(["deterministic", "ai", "hybrid"]), default=None)
+@click.option("--base-branch", type=str, default=None)
+@click.option("--no-branch-context", is_flag=True, default=False)
+@click.option("--strict-quality", "strict_quality", flag_value=True, default=None)
+@click.option("--no-strict-quality", "strict_quality", flag_value=False)
+@click.option("--open", "auto_open", is_flag=True, default=False)
+@click.option("--copy-output-dir", type=click.Path(), default=None)
+@click.option("--debug", is_flag=True, default=False)
+def generate_command(
+    project_dir: str | None,
+    project_dir_opt: str | None,
+    output: str,
+    fmt: str | None,
+    slides: str | None,
+    max_slides: int | None,
+    docs: tuple[str, ...],
+    theme: str | None,
+    mode: str | None,
+    base_branch: str | None,
+    no_branch_context: bool,
+    strict_quality: bool | None,
+    auto_open: bool,
+    copy_output_dir: str | None,
+    debug: bool,
+) -> None:
+    """Generate presentation outputs for a project directory."""
+
+    project = _resolve_project_dir(project_dir, project_dir_opt)
+    requested_slide_types = _parse_slide_types(slides)
+    overrides = _build_overrides(
+        fmt=fmt,
+        theme=theme,
+        mode=mode,
+        base_branch=base_branch,
+        no_branch_context=no_branch_context,
+        strict_quality=strict_quality,
+        copy_output_dir=copy_output_dir,
+        auto_open=auto_open,
+    )
+
+    result = run_generation(
+        project_dir=project,
+        additional_docs=list(docs),
+        requested_slide_types=requested_slide_types,
+        max_slides=max_slides,
+        cli_overrides=overrides,
+    )
+
+    payload = result["payload"]
+    resolved_fmt = result["config"]["general"]["format"]
+
+    if debug:
+        click.echo(json.dumps(payload, indent=2))
+
+    output_path = Path(output).resolve()
+    html_path: Path | None = None
+    md_path: Path | None = None
+    json_path: Path | None = None
+
+    if resolved_fmt in {"html", "both"}:
+        html_path = output_path if resolved_fmt == "html" else output_path.with_suffix(".html")
+        html_path.write_text(result["html"], encoding="utf-8")
+        click.echo(f"HTML presentation: {html_path}")
+
+    if resolved_fmt in {"markdown", "both"}:
+        md_path = output_path if resolved_fmt == "markdown" else output_path.with_suffix(".md")
+        md_path.write_text(result["markdown"], encoding="utf-8")
+        click.echo(f"Markdown presentation: {md_path}")
+
+    if resolved_fmt == "json":
+        json_path = output_path if output_path.suffix == ".json" else output_path.with_suffix(".json")
+        json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        click.echo(json.dumps(payload, indent=2))
+        click.echo(f"JSON payload: {json_path}")
+
+    _copy_outputs(copy_output_dir or result["config"]["output"].get("copy_output_dir"), html_path, md_path, json_path)
+
+    for warning in result.get("warnings", []):
+        click.echo(f"Warning: {warning}", err=True)
+
+    if auto_open and html_path and html_path.exists():
+        webbrowser.open(str(html_path))
+
+
+@cli.command("validate")
+@click.argument("project_dir", required=False)
+@click.option("--project-dir", "project_dir_opt", type=click.Path(exists=True, file_okay=False, dir_okay=True))
+@click.option("--slides", type=str, default=None)
+@click.option("--max-slides", type=click.IntRange(min=1), default=None)
+@click.option("--docs", "docs", multiple=True, type=click.Path())
+@click.option("--mode", type=click.Choice(["deterministic", "ai", "hybrid"]), default=None)
+@click.option("--base-branch", type=str, default=None)
+@click.option("--no-branch-context", is_flag=True, default=False)
+@click.option("--strict-quality", "strict_quality", flag_value=True, default=None)
+@click.option("--no-strict-quality", "strict_quality", flag_value=False)
+@click.option("--debug", is_flag=True, default=False)
+def validate_command(
+    project_dir: str | None,
+    project_dir_opt: str | None,
+    slides: str | None,
+    max_slides: int | None,
+    docs: tuple[str, ...],
+    mode: str | None,
+    base_branch: str | None,
+    no_branch_context: bool,
+    strict_quality: bool | None,
+    debug: bool,
+) -> None:
+    """Run analyzers and quality gates without writing outputs."""
+
+    project = _resolve_project_dir(project_dir, project_dir_opt)
+    requested_slide_types = _parse_slide_types(slides)
+
+    overrides = {
+        "general": {
+            "mode": mode,
+            "strict_quality": strict_quality,
+            "format": "json",
+        },
+        "git": {
+            "base_branch": base_branch,
+            "include_branch_context": None if not no_branch_context else False,
+        },
+    }
+
+    report = run_validation(
+        project_dir=project,
+        additional_docs=list(docs),
+        requested_slide_types=requested_slide_types,
+        max_slides=max_slides,
+        cli_overrides=overrides,
+    )
+
+    click.echo(f"Status: {report['status']}")
+    click.echo(f"Slides: {report['slide_count']}")
+    click.echo(f"Evidence entries: {report['evidence_count']}")
+
+    if report["warnings"]:
+        for warning in report["warnings"]:
+            click.echo(f"Warning: {warning}", err=True)
+
+    if report["errors"]:
+        for err in report["errors"]:
+            click.echo(f"Error: {err}", err=True)
+        raise SystemExit(1)
+
+    if debug:
+        click.echo(json.dumps(report, indent=2))
+
+
+@cli.group("models")
+def models_group() -> None:
+    """Manage local AI model artifacts."""
+
+
+@models_group.command("list")
+def models_list_command() -> None:
+    rows = list_models()
+    for row in rows:
+        status = "installed" if row["installed"] else "missing"
+        path = row["path"] or "-"
+        click.echo(f"{row['alias']}: {status} | license={row['license']} | path={path}")
+
+
+@models_group.command("install")
+@click.argument("alias")
+@click.option("--force", is_flag=True, default=False)
+def models_install_command(alias: str, force: bool) -> None:
+    path = install_model(alias, force=force)
+    click.echo(f"Installed {alias} -> {path}")
+
+
+@cli.command("studio")
+@click.argument("project_dir", required=False)
+@click.option("--project-dir", "project_dir_opt", type=click.Path(exists=True, file_okay=False, dir_okay=True))
+@click.option("--base-branch", type=str, default=None)
+@click.option("--theme", type=click.Choice(["default", "dark", "minimal", "colorful", "auto"]), default=None)
+@click.option("--port", type=int, default=None)
+@click.option("--read-only", is_flag=True, default=False)
+@click.option("--debug", is_flag=True, default=False)
+def studio_command(
+    project_dir: str | None,
+    project_dir_opt: str | None,
+    base_branch: str | None,
+    theme: str | None,
+    port: int | None,
+    read_only: bool,
+    debug: bool,
+) -> None:
+    """Run local Notebook-style Studio workspace."""
+
+    project = _resolve_project_dir(project_dir, project_dir_opt)
+    overrides = {
+        "general": {
+            "theme": theme,
+            "format": "json",
+            "mode": "deterministic",
+        },
+        "git": {
+            "base_branch": base_branch,
+        },
+        "studio": {
+            "read_only": read_only,
+            "port": port if port is not None else 0,
+        },
+    }
+
+    run_studio_server(
+        project_path=project,
+        cli_overrides=overrides,
+        port=port or 0,
+        read_only=read_only,
+        auto_open=True,
+        debug=debug,
+    )
+
+
+def main() -> None:
+    """Entry point used by console script."""
+
+    raw_argv = sys.argv[1:]
+    argv = _normalize_legacy_args(raw_argv)
+    debug = "--debug" in argv
+
+    try:
+        cli.main(args=argv, prog_name="hackluminary", standalone_mode=False)
+    except HackLuminaryError as exc:
+        click.echo(str(exc), err=True)
+        if debug:
+            traceback.print_exc()
+        raise SystemExit(1)
+    except click.ClickException as exc:
+        exc.show()
+        raise SystemExit(exc.exit_code)
+    except SystemExit:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive
+        click.echo(f"[{ErrorCode.RUNTIME_ERROR}] Unexpected failure: {exc}", err=True)
+        if debug:
+            traceback.print_exc()
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":
     main()
