@@ -45,7 +45,7 @@ Ground claims in repository evidence.
     try:
         context = _request_json(f"{base}/api/context")
         assert context["ok"] is True
-        assert context["data"]["schema_version"] == "2.1"
+        assert context["data"]["schema_version"] == "2.2"
         assert context["data"]["read_only"] is False
         assert "studio" in context["data"]["config"]
 
@@ -56,6 +56,10 @@ Ground claims in repository evidence.
         evidence = _request_json(f"{base}/api/evidence")
         assert evidence["ok"] is True
         assert evidence["data"]["evidence"]
+
+        media = _request_json(f"{base}/api/media")
+        assert media["ok"] is True
+        assert "media_catalog" in media["data"]
 
         update_payload = {
             "slides": [
@@ -83,6 +87,10 @@ Ground claims in repository evidence.
         exported = _request_json(f"{base}/api/export", method="POST", payload={"format": "html"})
         assert exported["ok"] is True
         assert "<!DOCTYPE html>" in exported["data"]["outputs"]["html"]
+
+        visual_fix = _request_json(f"{base}/api/visuals/auto-fix", method="POST", payload={})
+        assert visual_fix["ok"] is True
+        assert "quality_report" in visual_fix["data"]
 
         saved = _request_json(
             f"{base}/api/session",

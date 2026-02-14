@@ -1,4 +1,4 @@
-"""Evidence enrichment tests for schema 2.1."""
+"""Evidence enrichment tests for schema 2.2."""
 
 from hackluminary.pipeline import run_generation
 
@@ -24,7 +24,8 @@ Automate evidence-linked storytelling.
     )
 
     payload = result["payload"]
-    assert payload["schema_version"] == "2.1"
+    assert payload["schema_version"] == "2.2"
+    assert "media_catalog" in payload
 
     evidence = payload["evidence"]
     assert evidence

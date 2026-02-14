@@ -22,6 +22,15 @@ UNSUPPORTED_CLAIMS = {
     "100%",
 }
 
+WEAK_TITLES = {
+    "overview",
+    "summary",
+    "details",
+    "slide",
+    "content",
+    "misc",
+}
+
 
 def _slide_text(slide: dict) -> str:
     parts = [
@@ -37,19 +46,33 @@ def _slide_text(slide: dict) -> str:
     return "\n".join(parts)
 
 
-def evaluate_quality(slides: list[dict]) -> dict:
+def evaluate_quality(
+    slides: list[dict],
+    image_mode: str = "off",
+    min_visual_confidence: float = 0.72,
+) -> dict:
     """Return machine-readable quality report and gate status."""
 
     errors: list[str] = []
     warnings: list[str] = []
 
     content_slides = [s for s in slides if s.get("type") not in {"title", "closing"}]
+    visual_eligible_slides = [s for s in slides if s.get("type") not in {"title", "closing"}]
     with_evidence = 0
+    with_visuals = 0
+    crowded_slides = 0
+    weak_titles = 0
+    slides_without_visual: list[str] = []
+    visual_confidences: list[float] = []
 
     for slide in slides:
         text = _slide_text(slide)
         text_lower = text.lower()
         slide_id = slide.get("id", slide.get("type", "slide"))
+        title = str(slide.get("title", "")).strip()
+        title_lower = title.lower()
+        items = slide.get("list_items", [])
+        item_count = len(items) if isinstance(items, list) else 0
 
         if slide.get("type") not in {"title", "closing"}:
             refs = slide.get("evidence_refs", [])
@@ -71,6 +94,61 @@ def evaluate_quality(slides: list[dict]) -> dict:
                 f"Slide '{slide_id}' uses first-person ownership language; verify factual accuracy."
             )
 
+        if len(text) > 1500:
+            errors.append(f"Slide '{slide_id}' is too dense ({len(text)} chars). Keep under 1500.")
+        elif len(text) > 900:
+            warnings.append(f"Slide '{slide_id}' is dense ({len(text)} chars); consider trimming.")
+
+        if item_count > 10:
+            errors.append(f"Slide '{slide_id}' has too many list items ({item_count}).")
+            crowded_slides += 1
+        elif item_count > 7:
+            warnings.append(f"Slide '{slide_id}' has many list items ({item_count}); shorten for readability.")
+            crowded_slides += 1
+
+        if title and (len(title) <= 3 or title_lower in WEAK_TITLES):
+            warnings.append(f"Slide '{slide_id}' has a weak title ('{title}').")
+            weak_titles += 1
+
+        if slide.get("type") not in {"title", "closing"}:
+            visuals = slide.get("visuals", [])
+            if isinstance(visuals, list) and visuals:
+                with_visuals += 1
+                for visual in visuals:
+                    if not isinstance(visual, dict):
+                        continue
+                    if str(visual.get("type", "image")) != "image":
+                        warnings.append(f"Slide '{slide_id}' contains unsupported visual type.")
+                    alt_text = str(visual.get("alt", "")).strip()
+                    if not alt_text:
+                        msg = f"Slide '{slide_id}' has a visual with missing alt text."
+                        if str(image_mode) == "strict":
+                            errors.append(msg)
+                        else:
+                            warnings.append(msg)
+                    source_path = str(visual.get("source_path", "")).strip()
+                    if source_path.startswith("http://") or source_path.startswith("https://"):
+                        errors.append(f"Slide '{slide_id}' references external image URL, which is not allowed.")
+
+                    confidence = visual.get("confidence")
+                    if confidence is not None:
+                        try:
+                            score = float(confidence)
+                            visual_confidences.append(score)
+                            if score < min_visual_confidence:
+                                message = (
+                                    f"Slide '{slide_id}' has low-confidence visual match "
+                                    f"({score:.2f} < {min_visual_confidence:.2f})."
+                                )
+                                if str(image_mode) == "strict":
+                                    errors.append(message)
+                                else:
+                                    warnings.append(message)
+                        except (TypeError, ValueError):
+                            warnings.append(f"Slide '{slide_id}' has invalid visual confidence value.")
+            else:
+                slides_without_visual.append(str(slide_id))
+
     coverage = 1.0
     if content_slides:
         coverage = with_evidence / len(content_slides)
@@ -79,6 +157,25 @@ def evaluate_quality(slides: list[dict]) -> dict:
         errors.append(
             f"Evidence coverage {coverage:.2f} is below minimum threshold 0.80 for non-title slides."
         )
+
+    image_coverage = 1.0
+    if visual_eligible_slides:
+        image_coverage = with_visuals / len(visual_eligible_slides)
+
+    image_mode_normalized = str(image_mode).lower()
+    if image_mode_normalized == "auto" and visual_eligible_slides and image_coverage < 0.70:
+        warnings.append(
+            f"Image coverage {image_coverage:.2f} is below target 0.70 for non-title slides."
+        )
+
+    if image_mode_normalized == "strict" and visual_eligible_slides and image_coverage < 0.50:
+        errors.append(
+            f"Image coverage {image_coverage:.2f} is below strict threshold 0.50 for non-title slides."
+        )
+
+    visual_confidence_mean = 0.0
+    if visual_confidences:
+        visual_confidence_mean = sum(visual_confidences) / len(visual_confidences)
 
     status = "pass" if not errors else "fail"
     return {
@@ -89,6 +186,11 @@ def evaluate_quality(slides: list[dict]) -> dict:
             "slide_count": len(slides),
             "content_slide_count": len(content_slides),
             "evidence_coverage": round(coverage, 3),
+            "crowded_slides": crowded_slides,
+            "weak_titles": weak_titles,
+            "image_coverage": round(image_coverage, 3),
+            "slides_without_visual": slides_without_visual,
+            "visual_confidence_mean": round(visual_confidence_mean, 3),
         },
     }
 

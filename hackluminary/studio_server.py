@@ -17,6 +17,7 @@ from .presentation_generator import PresentationGenerator
 from .pipeline import run_generation
 from .quality import evaluate_quality
 from .studio_session import load_session, save_session
+from .visual_selector import attach_visuals_to_slides
 
 
 STATIC_DIR = Path(__file__).resolve().parent / "studio"
@@ -29,6 +30,7 @@ class StudioContext:
     payload: dict
     slides: list[dict]
     evidence: list[dict]
+    media_catalog: list[dict]
     metadata: dict
     warnings: list[str]
 
@@ -78,6 +80,7 @@ class StudioState:
             payload=payload,
             slides=[dict(slide) for slide in payload.get("slides", [])],
             evidence=[dict(item) for item in payload.get("evidence", [])],
+            media_catalog=[dict(item) for item in payload.get("media_catalog", [])],
             metadata=dict(payload.get("metadata", {})),
             warnings=list(result.get("warnings", [])),
         )
@@ -97,7 +100,7 @@ class StudioState:
                 override = draft_overrides.get(slide["id"], {})
                 if not isinstance(override, dict):
                     continue
-                for key in ["title", "subtitle", "content", "list_items", "claims", "evidence_refs", "notes"]:
+                for key in ["title", "subtitle", "content", "list_items", "claims", "evidence_refs", "notes", "visuals"]:
                     if key in override:
                         slide[key] = override[key]
 
@@ -111,14 +114,19 @@ class StudioState:
         self._refresh_quality()
 
     def _refresh_quality(self) -> None:
-        report = evaluate_quality(self.context.slides)
+        images_cfg = self.context.config.get("images", {})
+        report = evaluate_quality(
+            self.context.slides,
+            image_mode=str(images_cfg.get("mode", "off")),
+            min_visual_confidence=float(images_cfg.get("min_confidence", 0.72)),
+        )
         self.context.payload["quality_report"] = report
         self.session["last_validation"] = report
 
     def get_context_payload(self) -> dict:
         with self._lock:
             payload = {
-                "schema_version": self.context.payload.get("schema_version", "2.1"),
+                "schema_version": self.context.payload.get("schema_version", "2.2"),
                 "metadata": self.context.metadata,
                 "git_context": self.context.payload.get("git_context", {}),
                 "quality_report": self.context.payload.get("quality_report", {}),
@@ -127,6 +135,7 @@ class StudioState:
                     "features": self.context.config.get("features", {}),
                     "ui": self.context.config.get("ui", {}),
                     "studio": self.context.config.get("studio", {}),
+                    "images": self.context.config.get("images", {}),
                 },
                 "read_only": self.read_only,
                 "warnings": self.context.warnings,
@@ -140,6 +149,10 @@ class StudioState:
     def get_evidence_payload(self) -> dict:
         with self._lock:
             return {"evidence": self.context.evidence}
+
+    def get_media_payload(self) -> dict:
+        with self._lock:
+            return {"media_catalog": self.context.media_catalog}
 
     def get_session_payload(self) -> dict:
         with self._lock:
@@ -160,7 +173,7 @@ class StudioState:
                     continue
 
                 current = slide_by_id[sid]
-                for key in ["title", "subtitle", "content", "list_items", "claims", "evidence_refs", "notes"]:
+                for key in ["title", "subtitle", "content", "list_items", "claims", "evidence_refs", "notes", "visuals"]:
                     if key not in patch:
                         continue
 
@@ -173,6 +186,8 @@ class StudioState:
                     elif key == "evidence_refs":
                         if isinstance(value, list):
                             current[key] = [str(item).strip() for item in value if str(item).strip()][:12]
+                    elif key == "visuals":
+                        current[key] = _sanitize_visuals(value, self.project_path)
                     elif key == "notes":
                         current[key] = str(value)[:800]
                     else:
@@ -199,7 +214,7 @@ class StudioState:
         for slide in self.context.slides:
             draft_overrides[slide["id"]] = {
                 key: slide.get(key)
-                for key in ["title", "subtitle", "content", "list_items", "claims", "evidence_refs", "notes"]
+                for key in ["title", "subtitle", "content", "list_items", "claims", "evidence_refs", "notes", "visuals"]
                 if key in slide
             }
             if slide.get("notes"):
@@ -233,7 +248,12 @@ class StudioState:
     def validate(self, slides: list[dict] | None = None) -> dict:
         with self._lock:
             target = slides if slides is not None else self.context.slides
-            report = evaluate_quality(target)
+            images_cfg = self.context.config.get("images", {})
+            report = evaluate_quality(
+                target,
+                image_mode=str(images_cfg.get("mode", "off")),
+                min_visual_confidence=float(images_cfg.get("min_confidence", 0.72)),
+            )
             return {"quality_report": report}
 
     def export(self, fmt: str, slides: list[dict] | None = None, output_path: str | None = None) -> dict:
@@ -243,6 +263,7 @@ class StudioState:
                 target_slides,
                 metadata=self.context.metadata,
                 theme=self.context.config.get("general", {}).get("theme", "default"),
+                project_root=self.project_path,
             )
 
             outputs = {}
@@ -253,12 +274,13 @@ class StudioState:
             if fmt == "json":
                 outputs["json"] = json.dumps(
                     {
-                        "schema_version": "2.1",
+                        "schema_version": "2.2",
                         "metadata": self.context.metadata,
                         "git_context": self.context.payload.get("git_context", {}),
                         "slides": target_slides,
                         "evidence": self.context.evidence,
-                        "quality_report": evaluate_quality(target_slides),
+                        "media_catalog": self.context.media_catalog,
+                        "quality_report": self.validate(target_slides)["quality_report"],
                     },
                     indent=2,
                 )
@@ -281,6 +303,36 @@ class StudioState:
                     paths.append(str(path))
 
             return {"format": fmt, "outputs": outputs, "paths": paths}
+
+    def auto_fix_visuals(self, slide_ids: list[str] | None = None) -> dict:
+        with self._lock:
+            if self.read_only:
+                raise HackLuminaryError(ErrorCode.INVALID_INPUT, "Studio is in read-only mode.")
+
+            images_cfg = self.context.config.get("images", {})
+            updated, _summary = attach_visuals_to_slides(
+                slides=self.context.slides,
+                media_catalog=self.context.media_catalog,
+                mode=str(images_cfg.get("mode", "auto")),
+                max_images_per_slide=int(images_cfg.get("max_images_per_slide", 1)),
+                min_confidence=float(images_cfg.get("min_confidence", 0.72)),
+                visual_style=str(images_cfg.get("visual_style", "mixed")),
+            )
+
+            selected = set(str(item) for item in slide_ids or [])
+            if selected:
+                current_by_id = {slide["id"]: slide for slide in self.context.slides}
+                for patched in updated:
+                    sid = patched.get("id")
+                    if sid in selected:
+                        current_by_id[sid] = patched
+                self.context.slides = [current_by_id[slide["id"]] for slide in self.context.slides]
+            else:
+                self.context.slides = updated
+
+            self._refresh_quality()
+            self._sync_session_from_slides()
+            return {"slides": self.context.slides, "quality_report": self.context.payload.get("quality_report", {})}
 
 
 class StudioHTTPHandler(BaseHTTPRequestHandler):
@@ -310,6 +362,8 @@ class StudioHTTPHandler(BaseHTTPRequestHandler):
                 return self._json_ok(self.state.get_slides_payload())
             if path == "/api/evidence":
                 return self._json_ok(self.state.get_evidence_payload())
+            if path == "/api/media":
+                return self._json_ok(self.state.get_media_payload())
             if path == "/api/session":
                 return self._json_ok(self.state.get_session_payload())
 
@@ -345,6 +399,13 @@ class StudioHTTPHandler(BaseHTTPRequestHandler):
                 incoming = data.get("slides")
                 output_path = data.get("output_path")
                 payload = self.state.export(fmt, incoming if isinstance(incoming, list) else None, output_path)
+                return self._json_ok(payload)
+
+            if path == "/api/visuals/auto-fix":
+                slide_ids = data.get("slide_ids")
+                if slide_ids is not None and not isinstance(slide_ids, list):
+                    raise HackLuminaryError(ErrorCode.INVALID_INPUT, "'slide_ids' must be an array when provided.")
+                payload = self.state.auto_fix_visuals(slide_ids if isinstance(slide_ids, list) else None)
                 return self._json_ok(payload)
 
             return self._json_error(404, ErrorCode.INVALID_INPUT, f"Unknown route: {path}")
@@ -516,6 +577,52 @@ def _sanitize_claims(value: Any, fallback_refs: list[str]) -> list[dict]:
         )
 
     return claims
+
+
+def _sanitize_visuals(value: Any, project_root: Path) -> list[dict]:
+    visuals: list[dict] = []
+    if not isinstance(value, list):
+        return visuals
+
+    for item in value[:2]:
+        if not isinstance(item, dict):
+            continue
+        source_path = str(item.get("source_path", "")).strip()
+        if not source_path:
+            continue
+        if source_path.startswith("http://") or source_path.startswith("https://"):
+            continue
+        try:
+            safe_path = _safe_project_path(project_root, source_path)
+            source_path = str(safe_path.relative_to(project_root.resolve()))
+        except HackLuminaryError:
+            continue
+
+        refs = item.get("evidence_refs", [])
+        if not isinstance(refs, list):
+            refs = []
+
+        try:
+            confidence = float(item.get("confidence", 0.0))
+        except (TypeError, ValueError):
+            confidence = 0.0
+
+        visuals.append(
+            {
+                "id": str(item.get("id", ""))[:128],
+                "type": "image",
+                "source_path": source_path,
+                "alt": str(item.get("alt", "")).strip()[:240],
+                "caption": str(item.get("caption", "")).strip()[:240],
+                "evidence_refs": [str(ref).strip() for ref in refs if str(ref).strip()][:8],
+                "confidence": confidence,
+                "width": item.get("width"),
+                "height": item.get("height"),
+                "sha256": str(item.get("sha256", ""))[:128],
+            }
+        )
+
+    return visuals
 
 
 def _deep_merge(base: dict, override: dict) -> None:

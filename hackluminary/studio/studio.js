@@ -3,9 +3,11 @@
     context: null,
     slides: [],
     evidence: [],
+    media: [],
     session: {},
     mode: "notebook",
     selectedEvidenceId: null,
+    selectedMediaId: null,
     selectedSlideId: null,
     readOnly: false,
     autosaveRef: null,
@@ -26,9 +28,13 @@
     slideList: () => document.getElementById("slideList"),
     slideOutline: () => document.getElementById("slideOutline"),
     citationCard: () => document.getElementById("citationCard"),
+    qualityIssues: () => document.getElementById("qualityIssues"),
+    fixAllBtn: () => document.getElementById("fixAllBtn"),
+    autoFixVisualsBtn: () => document.getElementById("autoFixVisualsBtn"),
     qualityStatus: () => document.getElementById("qualityStatus"),
     branchStatus: () => document.getElementById("branchStatus"),
     messageStatus: () => document.getElementById("messageStatus"),
+    mediaList: () => document.getElementById("mediaList"),
     overlay: () => document.getElementById("overlay"),
   };
 
@@ -71,6 +77,10 @@
     return state.evidence.find((item) => item.id === id) || null;
   }
 
+  function mediaById(id) {
+    return state.media.find((item) => item.id === id) || null;
+  }
+
   function renderContext() {
     if (!state.context) return;
     const titleNode = els.projectTitle();
@@ -90,6 +100,67 @@
     }
 
     applyUIConfig();
+    renderQualityIssues();
+  }
+
+  function extractSlideIdFromIssue(issue) {
+    const m = /Slide '([^']+)'/.exec(String(issue || ""));
+    return m ? m[1] : "";
+  }
+
+  function isFixableIssue(issue) {
+    const text = String(issue || "").toLowerCase();
+    return (
+      text.includes("no evidence references") ||
+      text.includes("banned phrase") ||
+      text.includes("unsupported claim") ||
+      text.includes("evidence coverage") ||
+      text.includes("too many list items") ||
+      text.includes("is too dense") ||
+      text.includes("has many list items") ||
+      text.includes("weak title")
+    );
+  }
+
+  function renderQualityIssues() {
+    const container = els.qualityIssues();
+    if (!container) return;
+
+    const report = state.context?.quality_report || {};
+    const errors = Array.isArray(report.errors) ? report.errors : [];
+    const warnings = Array.isArray(report.warnings) ? report.warnings : [];
+
+    if (!errors.length && !warnings.length) {
+      container.innerHTML = "<p class='muted'>No issues.</p>";
+      return;
+    }
+
+    container.innerHTML = "";
+
+    const entries = [
+      ...errors.map((text) => ({ level: "error", text })),
+      ...warnings.map((text) => ({ level: "warning", text })),
+    ];
+
+    entries.forEach((entry) => {
+      const row = document.createElement("article");
+      row.className = "quality-issue";
+      row.dataset.level = entry.level;
+
+      const fixable = isFixableIssue(entry.text);
+      row.innerHTML = `
+        <div class="quality-issue-row">
+          <span>${escapeHtml(entry.text)}</span>
+          <button type="button" data-action="fix-issue" ${!fixable || state.readOnly ? "disabled" : ""}>Fix This</button>
+        </div>
+      `;
+
+      const button = row.querySelector("button[data-action='fix-issue']");
+      button?.addEventListener("click", async () => {
+        await autoFixIssues([entry.text]);
+      });
+      container.appendChild(row);
+    });
   }
 
   function applyUIConfig() {
@@ -169,6 +240,58 @@
     });
   }
 
+  function renderMedia() {
+    const list = els.mediaList();
+    if (!list) return;
+
+    const slideId = currentSlideId();
+    const slide = state.slides.find((item) => item.id === slideId) || null;
+    const attachedIds = new Set(Array.isArray(slide?.visuals) ? slide.visuals.map((v) => v.id) : []);
+
+    list.innerHTML = "";
+    if (!state.media.length) {
+      list.innerHTML = "<p class='muted'>No local media indexed.</p>";
+      return;
+    }
+
+    state.media.forEach((media) => {
+      const card = document.createElement("article");
+      card.className = "media-card";
+      const preview = media.preview_data_uri
+        ? `<img src="${escapeAttr(media.preview_data_uri)}" alt="${escapeAttr(media.alt || media.source_path || "media")}" loading="lazy" />`
+        : "<div class='muted'>No preview</div>";
+      const dims = media.width && media.height ? `${media.width}x${media.height}` : "unknown size";
+      const attachedLabel = attachedIds.has(media.id) ? "Attached" : "";
+
+      card.innerHTML = `
+        ${preview}
+        <div class="media-meta">${escapeHtml(media.source_path || media.id || "")}</div>
+        <div class="media-meta">${escapeHtml(media.kind || "repo_image")} · ${escapeHtml(dims)} ${attachedLabel ? "· " + attachedLabel : ""}</div>
+        <div class="media-actions">
+          <button type="button" data-action="attach-media" data-media-id="${escapeAttr(media.id)}" ${state.readOnly ? "disabled" : ""}>Attach</button>
+          <button type="button" data-action="replace-media" data-media-id="${escapeAttr(media.id)}" ${state.readOnly ? "disabled" : ""}>Replace</button>
+        </div>
+      `;
+      list.appendChild(card);
+    });
+
+    list.querySelectorAll("button[data-action='attach-media']").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const mediaId = button.getAttribute("data-media-id");
+        if (!mediaId) return;
+        await attachMediaToCurrentSlide(mediaId, false);
+      });
+    });
+
+    list.querySelectorAll("button[data-action='replace-media']").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const mediaId = button.getAttribute("data-media-id");
+        if (!mediaId) return;
+        await attachMediaToCurrentSlide(mediaId, true);
+      });
+    });
+  }
+
   function renderOutline() {
     const outline = els.slideOutline();
     if (!outline) return;
@@ -189,6 +312,7 @@
     renderOutline();
     renderSlides();
     renderEvidence();
+    renderMedia();
     if (focusCard) {
       const section = document.querySelector(`.slide-card[data-slide-id="${CSS.escape(slideId)}"]`);
       section?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -215,6 +339,9 @@
         const label = String(claim.text || "").slice(0, 90);
         return `<button type="button" class="claim-chip" data-slide="${idx}" data-claim="${cidx}" data-refs="${escapeHtml(refs)}">${escapeHtml(label)}</button>`;
       }).join("");
+      const visualSummary = Array.isArray(slide.visuals) && slide.visuals.length
+        ? slide.visuals.map((visual) => escapeHtml(visual.source_path || visual.id || "image")).join(", ")
+        : "No visuals attached";
 
       const listText = (slide.list_items || []).join("\n");
       const disableAttr = state.readOnly ? "disabled" : "";
@@ -227,6 +354,7 @@
           ${slide.content !== undefined ? `<label>Content <textarea data-field="content" data-index="${idx}" ${disableAttr}>${escapeHtml(slide.content || "")}</textarea></label>` : ""}
           ${slide.list_items ? `<label>List Items (one per line)<textarea data-field="list_items" data-index="${idx}" ${disableAttr}>${escapeHtml(listText)}</textarea></label>` : ""}
           <label>Speaker Notes <textarea data-field="notes" data-index="${idx}" ${disableAttr}>${escapeHtml(slide.notes || "")}</textarea></label>
+          <div class="muted">Visuals: ${visualSummary}</div>
           <div class="claims-row">${claimButtons || "<span class='muted'>No claims</span>"}</div>
           <div class="slide-actions">
             <button type="button" data-action="select-slide" data-index="${idx}">Focus</button>
@@ -354,6 +482,240 @@
     setMessage(`Evidence ${existing.has(evidenceId) ? "pinned" : "unpinned"}`, "ok");
   }
 
+  function toSlideVisual(slide, media, confidence = 0.9) {
+    const refs = Array.isArray(slide?.evidence_refs) ? slide.evidence_refs.slice(0, 3) : [];
+    return {
+      id: media.id,
+      type: "image",
+      source_path: media.source_path,
+      alt: media.alt || `Visual for ${slide?.title || "slide"}`,
+      caption: media.alt || media.source_path || "",
+      evidence_refs: refs,
+      confidence,
+      width: media.width,
+      height: media.height,
+      sha256: media.sha256,
+    };
+  }
+
+  async function attachMediaToCurrentSlide(mediaId, replace) {
+    if (state.readOnly) {
+      setMessage("Studio is read-only.", "warn");
+      return;
+    }
+
+    const slideId = currentSlideId();
+    const slide = state.slides.find((item) => item.id === slideId);
+    const media = mediaById(mediaId);
+    if (!slide || !media) {
+      setMessage("Select a slide and media item first.", "warn");
+      return;
+    }
+
+    const existing = Array.isArray(slide.visuals) ? [...slide.visuals] : [];
+    const visual = toSlideVisual(slide, media);
+    let visuals = [];
+    if (replace || !existing.length) visuals = [visual];
+    else {
+      visuals = [existing[0], visual].filter(Boolean).slice(0, 2);
+    }
+
+    const payload = await request("/api/slides", {
+      method: "POST",
+      body: JSON.stringify({ slides: [{ id: slide.id, visuals }] }),
+    });
+    state.slides = payload.slides || state.slides;
+    state.context.quality_report = payload.quality_report || state.context.quality_report;
+    renderContext();
+    renderOutline();
+    renderSlides();
+    renderMedia();
+    await saveSession({ silent: true });
+    setMessage(`${replace ? "Replaced" : "Attached"} visual for ${slide.title || slide.id}`, "ok");
+  }
+
+  async function autoFixVisuals() {
+    if (state.readOnly) {
+      setMessage("Studio is read-only.", "warn");
+      return;
+    }
+    const payload = await request("/api/visuals/auto-fix", {
+      method: "POST",
+      body: JSON.stringify({ slide_ids: [currentSlideId()] }),
+    });
+    state.slides = payload.slides || state.slides;
+    state.context.quality_report = payload.quality_report || state.context.quality_report;
+    renderContext();
+    renderOutline();
+    renderSlides();
+    renderMedia();
+    await saveSession({ silent: true });
+    setMessage("Auto-fixed visuals for current slide.", "ok");
+  }
+
+  function defaultEvidenceRefs() {
+    const preferred = ["doc.description", "doc.title", "repo.project", "repo.languages", "git.branch"];
+    const available = new Set((state.evidence || []).map((item) => String(item.id || "")));
+    const refs = preferred.filter((ref) => available.has(ref));
+    if (refs.length) return refs.slice(0, 2);
+    const first = state.evidence?.[0]?.id;
+    return first ? [first] : [];
+  }
+
+  function normalizeText(text) {
+    return String(text || "").replace(/\s{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  function removePhrase(text, phrase) {
+    if (!phrase) return normalizeText(text);
+    const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(escaped, "ig");
+    return normalizeText(String(text || "").replace(re, ""));
+  }
+
+  function fixWeakTitle(slide) {
+    const weak = new Set(["overview", "summary", "details", "slide", "content", "misc"]);
+    const current = String(slide.title || "").trim();
+    const lc = current.toLowerCase();
+    if (!current || current.length <= 3 || weak.has(lc)) {
+      const slideType = String(slide.type || "Slide");
+      slide.title = `${slideType.charAt(0).toUpperCase()}${slideType.slice(1)} Snapshot`;
+      return true;
+    }
+    return false;
+  }
+
+  function applyIssueFix(issue, workingSlides, fallbackRefs) {
+    const text = String(issue || "");
+    const lower = text.toLowerCase();
+    const slideId = extractSlideIdFromIssue(text);
+    let changed = false;
+
+    const targetSlide = slideId ? workingSlides.find((slide) => slide.id === slideId) : null;
+    const targets = targetSlide ? [targetSlide] : workingSlides;
+
+    if (lower.includes("no evidence references") && targetSlide) {
+      if (!Array.isArray(targetSlide.evidence_refs) || !targetSlide.evidence_refs.length) {
+        targetSlide.evidence_refs = [...fallbackRefs];
+        changed = true;
+      }
+    }
+
+    if (lower.includes("banned phrase")) {
+      const phraseMatch = /banned phrase: '([^']+)'/i.exec(text);
+      const phrase = phraseMatch ? phraseMatch[1] : "";
+      targets.forEach((slide) => {
+        const before = JSON.stringify(slide);
+        slide.title = removePhrase(slide.title, phrase);
+        slide.subtitle = removePhrase(slide.subtitle, phrase);
+        slide.content = removePhrase(slide.content, phrase);
+        if (Array.isArray(slide.list_items)) {
+          slide.list_items = slide.list_items.map((item) => removePhrase(item, phrase)).filter(Boolean);
+        }
+        if (Array.isArray(slide.claims)) {
+          slide.claims = slide.claims.map((claim) => ({
+            ...claim,
+            text: removePhrase(claim.text, phrase),
+          })).filter((claim) => claim.text);
+        }
+        if (JSON.stringify(slide) !== before) changed = true;
+      });
+    }
+
+    if (lower.includes("unsupported claim") && targetSlide) {
+      if (!Array.isArray(targetSlide.evidence_refs) || !targetSlide.evidence_refs.length) {
+        targetSlide.evidence_refs = [...fallbackRefs];
+        changed = true;
+      }
+    }
+
+    if ((lower.includes("too many list items") || lower.includes("has many list items")) && targetSlide) {
+      if (Array.isArray(targetSlide.list_items) && targetSlide.list_items.length > 7) {
+        targetSlide.list_items = targetSlide.list_items.slice(0, 7);
+        changed = true;
+      }
+    }
+
+    if (lower.includes("is too dense") && targetSlide) {
+      const before = JSON.stringify(targetSlide);
+      if (targetSlide.content && String(targetSlide.content).length > 700) {
+        targetSlide.content = String(targetSlide.content).slice(0, 700).trim() + "...";
+      }
+      if (Array.isArray(targetSlide.list_items) && targetSlide.list_items.length > 6) {
+        targetSlide.list_items = targetSlide.list_items.slice(0, 6);
+      }
+      if (JSON.stringify(targetSlide) !== before) changed = true;
+    }
+
+    if (lower.includes("weak title") && targetSlide) {
+      changed = fixWeakTitle(targetSlide) || changed;
+    }
+
+    if (lower.includes("evidence coverage")) {
+      workingSlides.forEach((slide) => {
+        if (["title", "closing"].includes(String(slide.type || ""))) return;
+        if (!Array.isArray(slide.evidence_refs) || !slide.evidence_refs.length) {
+          slide.evidence_refs = [...fallbackRefs];
+          changed = true;
+        }
+      });
+    }
+
+    return changed;
+  }
+
+  async function autoFixIssues(issueTexts) {
+    if (state.readOnly) {
+      setMessage("Studio is read-only.", "warn");
+      return;
+    }
+
+    const issues = Array.isArray(issueTexts) ? issueTexts : [];
+    if (!issues.length) {
+      setMessage("No issues to fix.", "warn");
+      return;
+    }
+
+    const fallbackRefs = defaultEvidenceRefs();
+    const working = structuredClone(state.slides);
+    let changed = false;
+
+    issues.forEach((issue) => {
+      changed = applyIssueFix(issue, working, fallbackRefs) || changed;
+    });
+
+    if (!changed) {
+      setMessage("No automatic fix available for selected issue(s).", "warn");
+      return;
+    }
+
+    const patches = [];
+    working.forEach((slide, idx) => {
+      if (JSON.stringify(slide) !== JSON.stringify(state.slides[idx])) {
+        patches.push(slide);
+      }
+    });
+
+    if (!patches.length) {
+      setMessage("No slide changes produced by auto-fix.", "warn");
+      return;
+    }
+
+    const payload = await request("/api/slides", {
+      method: "POST",
+      body: JSON.stringify({ slides: patches }),
+    });
+    state.slides = payload.slides || [];
+    state.context.quality_report = payload.quality_report || state.context.quality_report;
+    renderContext();
+    renderOutline();
+    renderSlides();
+    renderEvidence();
+    renderMedia();
+    await saveSession({ silent: true });
+    setMessage(`Applied ${patches.length} auto-fix update(s).`, "ok");
+  }
+
   function moveSlide(index, direction) {
     if (state.readOnly) return;
     const target = index + direction;
@@ -399,6 +761,7 @@
     renderContext();
     renderOutline();
     renderSlides();
+    renderMedia();
     await saveSession({ silent: true });
     setMessage(`Saved slide ${index + 1}`, "ok");
   }
@@ -461,6 +824,15 @@
 
     document.getElementById("saveSessionBtn")?.addEventListener("click", saveSession);
     document.getElementById("validateBtn")?.addEventListener("click", validateSlides);
+    els.fixAllBtn()?.addEventListener("click", async () => {
+      const report = state.context?.quality_report || {};
+      const issues = [
+        ...(Array.isArray(report.errors) ? report.errors : []),
+        ...(Array.isArray(report.warnings) ? report.warnings : []),
+      ];
+      await autoFixIssues(issues);
+    });
+    els.autoFixVisualsBtn()?.addEventListener("click", autoFixVisuals);
 
     document.getElementById("exportBtn")?.addEventListener("click", () => {
       const overlay = els.overlay();
@@ -527,6 +899,10 @@
     if (!state.readOnly) return;
     const saveBtn = document.getElementById("saveSessionBtn");
     if (saveBtn) saveBtn.setAttribute("disabled", "disabled");
+    const fixBtn = els.fixAllBtn();
+    if (fixBtn) fixBtn.setAttribute("disabled", "disabled");
+    const visualBtn = els.autoFixVisualsBtn();
+    if (visualBtn) visualBtn.setAttribute("disabled", "disabled");
     setMessage("Read-only mode enabled", "warn");
   }
 
@@ -542,16 +918,18 @@
   }
 
   async function loadAll() {
-    const [context, slides, evidence, session] = await Promise.all([
+    const [context, slides, evidence, media, session] = await Promise.all([
       request("/api/context"),
       request("/api/slides"),
       request("/api/evidence"),
+      request("/api/media"),
       request("/api/session"),
     ]);
 
     state.context = context;
     state.slides = slides.slides || [];
     state.evidence = evidence.evidence || [];
+    state.media = media.media_catalog || [];
     state.session = session.session || {};
     state.readOnly = Boolean(context.read_only);
     state.selectedSlideId = state.slides[0]?.id || null;
@@ -559,6 +937,7 @@
     renderContext();
     renderOutline();
     renderEvidence();
+    renderMedia();
     renderSlides();
     applyReadOnlyMode();
     applyPaneWeights();

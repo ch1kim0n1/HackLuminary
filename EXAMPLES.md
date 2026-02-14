@@ -1,4 +1,4 @@
-# HackLuminary v2.1 Examples
+# HackLuminary v2.2 Examples
 
 ## 1) Open Notebook-style Studio
 
@@ -12,15 +12,18 @@ Studio provides:
 - draft board editing
 - presenter HUD
 
-## 2) Deterministic export bundle
+## 2) Deterministic export bundle with manifest
 
 ```bash
-hackluminary generate . --mode deterministic --format both --output pitch
+hackluminary generate . --preset quick --images auto --output pitch --bundle
 ```
 
 Outputs:
 - `pitch.html` (self-contained)
 - `pitch.md`
+- `notes.md`
+- `talk-track.md`
+- `manifest.json`
 
 ## 3) JSON payload for automation pipelines
 
@@ -28,9 +31,17 @@ Outputs:
 hackluminary generate . --mode deterministic --format json --output payload.json
 ```
 
-Includes schema `2.1` with claims and enriched evidence metadata.
+Includes schema `2.2` with claims, media catalog, and enriched evidence metadata.
 
-## 4) Branch-aware technical deck
+## 4) Image diagnostics
+
+```bash
+hackluminary images scan .
+hackluminary images report . --json
+hackluminary images benchmark ./corpus --max-projects 10
+```
+
+## 5) Branch-aware technical deck
 
 ```bash
 hackluminary generate . \
@@ -40,13 +51,13 @@ hackluminary generate . \
   --output branch-review
 ```
 
-## 5) Validate quality gates in CI
+## 6) Validate quality gates in CI
 
 ```bash
-hackluminary validate . --mode deterministic
+hackluminary validate . --preset demo-day
 ```
 
-## 6) Save outputs to shared artifact directory
+## 7) Save outputs to shared artifact directory
 
 ```bash
 hackluminary generate . \
@@ -56,7 +67,7 @@ hackluminary generate . \
   --copy-output-dir ./artifacts
 ```
 
-## 7) Install local model and run hybrid mode
+## 8) Install local model and run hybrid mode
 
 ```bash
 hackluminary models list
@@ -64,7 +75,7 @@ hackluminary models install qwen2.5-3b-instruct-q4_k_m
 hackluminary generate . --mode hybrid --format both --output ai-pitch
 ```
 
-## 8) Sample project config
+## 9) Sample project config
 
 ```toml
 [general]
@@ -76,6 +87,19 @@ strict_quality = true
 [git]
 base_branch = "main"
 include_branch_context = true
+
+[images]
+enabled = true
+mode = "auto"
+image_dirs = []
+max_images_per_slide = 1
+min_confidence = 0.72
+visual_style = "mixed"
+
+[telemetry]
+enabled = false
+anonymous = true
+endpoint = ""
 
 [studio]
 enabled = true
@@ -95,6 +119,60 @@ studio_enabled = true
 production_theme_enabled = true
 presenter_pro_enabled = true
 
-[privacy]
-telemetry = false
+```
+
+## 10) First-run setup workflow
+
+```bash
+hackluminary doctor .
+hackluminary init .
+hackluminary presets
+```
+
+## 11) Create a runnable sample project
+
+```bash
+hackluminary sample
+hackluminary generate ./hackluminary-sample --preset quick --bundle
+```
+
+## 12) Build standalone binary locally
+
+```bash
+python -m pip install -e '.[release]'
+python scripts/release/build_standalone.py --platform-tag macos-arm64 --release-version v2.2.0
+```
+
+Artifacts are written under `dist/release/` with matching `.sha256` files.
+
+## 13) Render Homebrew and Winget manifests
+
+```bash
+python scripts/release/render_homebrew_formula.py \
+  --version v2.2.0 \
+  --repo MindCore/HackLuminary \
+  --arm64-sha256 <arm64-sha> \
+  --x64-sha256 <x64-sha> \
+  --output dist/manifests/homebrew/hackluminary.rb
+
+python scripts/release/render_winget_manifest.py \
+  --version v2.2.0 \
+  --repo MindCore/HackLuminary \
+  --installer-sha256 <windows-sha> \
+  --output-dir dist/manifests/winget
+```
+
+## 14) Devpost package helper
+
+```bash
+hackluminary package devpost . --output ./artifacts/devpost.zip
+```
+
+## 15) Opt-in telemetry operations
+
+```bash
+hackluminary telemetry enable . --endpoint https://example.invalid/ingest
+hackluminary telemetry status .
+hackluminary telemetry flush . --max-events 100
+hackluminary telemetry disable .
 ```

@@ -8,7 +8,7 @@ from pathlib import Path
 from .pipeline import run_generation
 from .studio_server import run_studio_server
 
-__version__ = "2.1.0"
+__version__ = "2.2.0"
 
 
 def generate_presentation(
@@ -23,6 +23,10 @@ def generate_presentation(
     base_branch=None,
     include_branch_context=True,
     strict_quality=True,
+    images="auto",
+    image_dirs=None,
+    max_images_per_slide=1,
+    visual_style="mixed",
 ):
     """Generate a presentation payload and optional rendered outputs.
 
@@ -40,6 +44,12 @@ def generate_presentation(
         "git": {
             "base_branch": base_branch,
             "include_branch_context": include_branch_context,
+        },
+        "images": {
+            "mode": images,
+            "image_dirs": list(image_dirs or []),
+            "max_images_per_slide": max_images_per_slide,
+            "visual_style": visual_style,
         },
     }
 

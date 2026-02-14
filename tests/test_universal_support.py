@@ -48,7 +48,8 @@ Use local automation.
     slide_ids = [slide["id"] for slide in payload["slides"]]
     evidence_ids = {entry["id"] for entry in payload["evidence"]}
 
-    assert payload["schema_version"] == "2.1"
+    assert payload["schema_version"] == "2.2"
+    assert "media_catalog" in payload
     assert "delta" not in slide_ids
     assert payload["quality_report"]["status"] == "pass"
     assert all("claims" in slide for slide in payload["slides"])
@@ -70,3 +71,20 @@ def test_pipeline_respects_slide_filter(tmp_path):
 
     slide_ids = [slide["id"] for slide in result["payload"]["slides"]]
     assert slide_ids == ["title", "tech", "closing"]
+
+
+def test_quality_report_includes_deck_lint_metrics():
+    slides = [
+        {
+            "id": "overview",
+            "type": "content",
+            "title": "Overview",
+            "content": "x" * 950,
+            "list_items": [f"Item {idx}" for idx in range(8)],
+            "evidence_refs": ["doc.problem"],
+        }
+    ]
+    report = evaluate_quality(slides)
+    assert report["metrics"]["crowded_slides"] == 1
+    assert report["metrics"]["weak_titles"] == 1
+    assert report["warnings"]

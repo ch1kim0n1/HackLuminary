@@ -21,6 +21,16 @@ def _sample_slides():
             "list_items": ["Python", "FastAPI"],
             "evidence_refs": ["repo.languages"],
             "claims": [{"text": "Uses Python", "evidence_refs": ["repo.languages"], "confidence": 0.91}],
+            "visuals": [
+                {
+                    "id": "media.demo",
+                    "type": "image",
+                    "source_path": "assets/demo.png",
+                    "alt": "Demo screenshot",
+                    "caption": "Demo UI",
+                    "confidence": 0.9,
+                }
+            ],
         },
         {
             "id": "delta",
@@ -44,6 +54,7 @@ def test_html_is_sanitized_and_offline():
     assert "claim-chip" in html
     assert "presenter-hud" in html
     assert "speaker-notes" in html
+    assert "image-modal" in html
 
 
 def test_markdown_supports_tech_and_delta_sections():

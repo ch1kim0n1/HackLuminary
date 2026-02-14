@@ -13,6 +13,7 @@ def build_evidence(
     doc_data: dict,
     git_context: dict,
     project_path: Path | None = None,
+    media_catalog: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Build evidence records with schema v2.1 enrichment fields.
 
@@ -162,6 +163,30 @@ def build_evidence(
         "git",
         source_path=".git",
     )
+
+    for media in media_catalog or []:
+        source_path = str(media.get("source_path", "")).strip()
+        media_id = str(media.get("id", "")).strip()
+        sha = str(media.get("sha256", "")).strip()
+        if not source_path or not media_id:
+            continue
+
+        title = source_path.rsplit("/", 1)[-1]
+        add(
+            f"media.{sha[:12] or media_id}",
+            "image",
+            f"Image Asset: {title}",
+            {
+                "source_path": source_path,
+                "sha256": sha,
+                "width": media.get("width"),
+                "height": media.get("height"),
+                "tags": media.get("tags", []),
+            },
+            source_kind=str(media.get("kind", "repo_image")),
+            source_path=source_path,
+            source_text=str(media.get("alt", "")),
+        )
 
     return evidence
 

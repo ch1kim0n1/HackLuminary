@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 SESSION_SCHEMA_VERSION = "1.0"
+MAX_SESSION_SNAPSHOTS = 20
 
 
 def get_studio_session_path(project_path: Path | str) -> Path:
@@ -45,6 +47,7 @@ def load_session(project_path: Path | str) -> dict:
 def save_session(project_path: Path | str, payload: dict) -> Path:
     path = get_studio_session_path(project_path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    _snapshot_existing_session(path)
 
     merged = default_session()
     merged.update({k: v for k, v in payload.items() if k in merged})
@@ -75,3 +78,26 @@ def migrate_session(payload: dict) -> dict:
 
     session["studio_schema_version"] = SESSION_SCHEMA_VERSION
     return session
+
+
+def _snapshot_existing_session(path: Path) -> None:
+    if not path.exists():
+        return
+
+    try:
+        prior = path.read_text(encoding="utf-8")
+    except Exception:
+        return
+
+    if not prior.strip():
+        return
+
+    snap_dir = path.parent / "snapshots"
+    snap_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    snap_path = snap_dir / f"session-{stamp}.json"
+    snap_path.write_text(prior, encoding="utf-8")
+
+    snapshots = sorted(snap_dir.glob("session-*.json"))
+    for stale in snapshots[:-MAX_SESSION_SNAPSHOTS]:
+        stale.unlink(missing_ok=True)

@@ -1,0 +1,32 @@
+name: Generate Deck
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  deck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Generate
+        id: deck
+        uses: ./.github/actions/generate-deck
+        with:
+          project-dir: "."
+          output-base: "artifacts/deck"
+          preset: "demo-day"
+          images: "auto"
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hackluminary-deck
+          path: ${{ steps.deck.outputs.artifact_dir }}

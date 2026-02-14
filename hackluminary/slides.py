@@ -80,6 +80,7 @@ def build_deterministic_slides(
         slide.setdefault("evidence_refs", [])
         slide.setdefault("claims", _derive_claims(slide))
         slide.setdefault("notes", "")
+        slide.setdefault("visuals", [])
     return slides
 
 

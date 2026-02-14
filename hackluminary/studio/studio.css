@@ -176,6 +176,68 @@ select:focus-visible {
   gap: 6px;
 }
 
+.quality-panel {
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel-alt) 92%, black 8%);
+  padding: 8px;
+  margin-bottom: var(--space-2);
+}
+
+.quality-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.quality-actions {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.quality-head h3 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.quality-issues {
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.quality-issue {
+  border: 1px solid color-mix(in srgb, var(--accent2) 20%, transparent);
+  border-radius: 8px;
+  padding: 6px;
+  background: color-mix(in srgb, var(--panel-alt) 95%, black 5%);
+  font-size: 0.79rem;
+}
+
+.quality-issue[data-level="error"] {
+  border-color: color-mix(in srgb, var(--danger) 65%, transparent);
+}
+
+.quality-issue[data-level="warning"] {
+  border-color: color-mix(in srgb, var(--warn) 58%, transparent);
+}
+
+.quality-issue-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.quality-issue-row button {
+  font-size: 0.72rem;
+  padding: 3px 6px;
+}
+
 .outline-item {
   text-align: left;
   font-size: 0.8rem;
@@ -244,6 +306,46 @@ select:focus-visible {
   border: 1px solid color-mix(in srgb, var(--accent2) 20%, transparent);
   border-radius: 8px;
   padding: 8px;
+}
+
+.media-panel {
+  margin-top: var(--space-2);
+  border-top: 1px dashed color-mix(in srgb, var(--accent2) 25%, transparent);
+  padding-top: var(--space-2);
+}
+
+.media-list {
+  display: grid;
+  gap: var(--space-2);
+  max-height: 320px;
+  overflow: auto;
+}
+
+.media-card {
+  border: 1px solid color-mix(in srgb, var(--accent2) 24%, transparent);
+  border-radius: 10px;
+  padding: 8px;
+  background: color-mix(in srgb, var(--panel-alt) 94%, black 6%);
+}
+
+.media-card img {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--accent2) 20%, transparent);
+  background: color-mix(in srgb, var(--panel) 88%, black 12%);
+}
+
+.media-meta {
+  font-size: 0.76rem;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+.media-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .presenter-panel {

@@ -1,0 +1,58 @@
+name: "Generate HackLuminary Deck"
+description: "Generate offline deck artifacts (HTML/MD/JSON + bundle) for PRs or releases."
+inputs:
+  project-dir:
+    description: "Project directory to analyze"
+    required: false
+    default: "."
+  output-base:
+    description: "Base output path (without extension for format=both)"
+    required: false
+    default: "artifacts/deck"
+  preset:
+    description: "HackLuminary preset"
+    required: false
+    default: "demo-day"
+  mode:
+    description: "Generation mode override"
+    required: false
+    default: ""
+  images:
+    description: "Image mode (off|auto|strict)"
+    required: false
+    default: "auto"
+outputs:
+  artifact_dir:
+    description: "Directory where deck artifacts were written"
+    value: ${{ steps.generate.outputs.artifact_dir }}
+runs:
+  using: "composite"
+  steps:
+    - name: Install HackLuminary
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install .
+
+    - name: Generate deck
+      id: generate
+      shell: bash
+      run: |
+        set -euo pipefail
+        OUTPUT_BASE="${{ inputs.output-base }}"
+        mkdir -p "$(dirname "$OUTPUT_BASE")"
+
+        EXTRA_ARGS=()
+        if [ -n "${{ inputs.mode }}" ]; then
+          EXTRA_ARGS+=("--mode" "${{ inputs.mode }}")
+        fi
+
+        hackluminary generate "${{ inputs.project-dir }}" \
+          --preset "${{ inputs.preset }}" \
+          --images "${{ inputs.images }}" \
+          --output "$OUTPUT_BASE" \
+          --format both \
+          --bundle \
+          "${EXTRA_ARGS[@]}"
+
+        echo "artifact_dir=$(dirname "$OUTPUT_BASE")" >> "$GITHUB_OUTPUT"

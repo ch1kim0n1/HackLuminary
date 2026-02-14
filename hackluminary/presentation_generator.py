@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import base64
 import html
+import mimetypes
+from pathlib import Path
 
 
 class PresentationGenerator:
@@ -59,11 +62,12 @@ class PresentationGenerator:
         },
     }
 
-    def __init__(self, slides: list[dict], metadata: dict, theme: str = "default"):
+    def __init__(self, slides: list[dict], metadata: dict, theme: str = "default", project_root: Path | None = None):
         self.slides = slides
         self.metadata = metadata
         self.theme_name = theme
         self.theme = self._resolve_theme(theme)
+        self.project_root = Path(project_root).resolve() if project_root else None
 
     def generate(self) -> str:
         return self.generate_html()
@@ -83,7 +87,7 @@ class PresentationGenerator:
 <head>
 <meta charset=\"utf-8\">
 <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
-<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:;\">
+<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:;\">
 <title>{project_name} - HackLuminary Presentation</title>
 <style>
 :root {{{css_vars}}}
@@ -143,6 +147,74 @@ body {{
 .slide.slide-solution {{ border-left: 5px solid var(--ok); }}
 .slide.slide-tech {{ border-left: 5px solid var(--accent2); }}
 .slide.slide-delta {{ border-left: 5px solid var(--warning); }}
+.slide-layout {{
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  gap: 18px;
+  align-items: start;
+}}
+.slide-main {{ min-width: 0; }}
+.visual-panel {{
+  border: 1px solid color-mix(in srgb, var(--accent2) 24%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel_alt) 92%, black 8%);
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+}}
+.visual-item {{ margin: 0; }}
+.visual-thumb {{
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: zoom-in;
+}}
+.visual-thumb img {{
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent2) 30%, transparent);
+  display: block;
+}}
+.visual-caption {{
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 6px;
+  line-height: 1.5;
+}}
+.image-modal {{
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.84);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 90;
+  padding: 24px;
+}}
+.image-modal.visible {{ display: flex; }}
+.image-modal-card {{
+  max-width: min(96vw, 1200px);
+  max-height: 92vh;
+  background: color-mix(in srgb, var(--panel) 92%, black 8%);
+  border: 1px solid color-mix(in srgb, var(--accent2) 30%, transparent);
+  border-radius: 14px;
+  padding: 12px;
+}}
+.image-modal-card img {{
+  max-width: 100%;
+  max-height: 76vh;
+  border-radius: 10px;
+  display: block;
+  margin: 0 auto;
+}}
+.image-modal-caption {{
+  color: var(--muted);
+  font-size: 0.86rem;
+  margin-top: 8px;
+  text-align: center;
+}}
 .claims {{ margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px; }}
 .claim-chip {{
   border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
@@ -253,6 +325,7 @@ body.presenter-mode .presenter-hud {{ display: block; }}
 code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }}
 @media (max-width: 900px) {{
   .slide-list {{ columns: 1; }}
+  .slide-layout {{ grid-template-columns: 1fr; }}
   .presenter-hud {{ width: calc(100vw - 24px); right: 12px; left: 12px; }}
 }}
 @media (prefers-reduced-motion: reduce) {{
@@ -296,11 +369,23 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
   <button class="control-btn" id="togglePalette">Shortcuts</button>
   <div class="timeline" id="timeline">{timeline}</div>
 </div>
+<div class="image-modal" id="imageModal" aria-hidden="true" role="dialog" aria-label="Image preview">
+  <div class="image-modal-card">
+    <img id="imageModalImg" alt="" />
+    <div class="image-modal-caption" id="imageModalCaption"></div>
+    <div style="text-align:center; margin-top:10px;">
+      <button class="control-btn" id="closeImageModal">Close</button>
+    </div>
+  </div>
+</div>
 <script>
 (() => {{
   const slides = Array.from(document.querySelectorAll('.slide'));
   const timelineDots = Array.from(document.querySelectorAll('.timeline-dot'));
   const palette = document.getElementById('palette');
+  const imageModal = document.getElementById('imageModal');
+  const imageModalImg = document.getElementById('imageModalImg');
+  const imageModalCaption = document.getElementById('imageModalCaption');
   const hudCurrent = document.getElementById('hudCurrent');
   const hudNext = document.getElementById('hudNext');
   const timerEl = document.getElementById('hudTimer');
@@ -367,6 +452,22 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
     palette.setAttribute('aria-hidden', visible ? 'false' : 'true');
   }}
 
+  function openImageModal(src, alt, caption) {{
+    if (!imageModal || !imageModalImg || !imageModalCaption) return;
+    imageModalImg.src = src || '';
+    imageModalImg.alt = alt || '';
+    imageModalCaption.textContent = caption || alt || '';
+    imageModal.classList.add('visible');
+    imageModal.setAttribute('aria-hidden', 'false');
+  }}
+
+  function closeImageModal() {{
+    if (!imageModal || !imageModalImg) return;
+    imageModal.classList.remove('visible');
+    imageModal.setAttribute('aria-hidden', 'true');
+    imageModalImg.src = '';
+  }}
+
   function onClaimClick(event) {{
     const ids = event.currentTarget.getAttribute('data-evidence') || '';
     if (!ids) return;
@@ -377,7 +478,7 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
 
   document.addEventListener('keydown', (event) => {{
     if (event.key === '?' ) {{ event.preventDefault(); togglePalette(); return; }}
-    if (event.key === 'Escape') {{ togglePalette(false); return; }}
+    if (event.key === 'Escape') {{ togglePalette(false); closeImageModal(); return; }}
     if (event.key.toLowerCase() === 'p') {{ event.preventDefault(); togglePresenter(); return; }}
     if (event.key.toLowerCase() === 'j') {{ event.preventDefault(); jumpInput?.focus(); return; }}
 
@@ -406,6 +507,19 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
 
   document.getElementById('togglePresenter')?.addEventListener('click', togglePresenter);
   document.getElementById('togglePalette')?.addEventListener('click', () => togglePalette());
+  document.getElementById('closeImageModal')?.addEventListener('click', closeImageModal);
+  imageModal?.addEventListener('click', (event) => {{
+    if (event.target === imageModal) closeImageModal();
+  }});
+
+  document.querySelectorAll('.visual-thumb').forEach((button) => {{
+    button.addEventListener('click', () => {{
+      const src = button.getAttribute('data-modal-src') || '';
+      const alt = button.getAttribute('data-modal-alt') || '';
+      const caption = button.getAttribute('data-modal-caption') || '';
+      if (src) openImageModal(src, alt, caption);
+    }});
+  }});
 
   document.getElementById('timerStart')?.addEventListener('click', startTimer);
   document.getElementById('timerPause')?.addEventListener('click', pauseTimer);
@@ -465,6 +579,21 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
                     lines.append(f"- {item}")
                 lines.append("")
 
+            visuals = slide.get("visuals", [])
+            if isinstance(visuals, list) and visuals:
+                lines.append("Visuals:")
+                for visual in visuals[:2]:
+                    if not isinstance(visual, dict):
+                        continue
+                    source = str(visual.get("source_path", "")).strip()
+                    alt = str(visual.get("alt", "Visual")).strip() or "Visual"
+                    caption = str(visual.get("caption", "")).strip()
+                    if source:
+                        lines.append(f"![{alt}]({source})")
+                    if caption:
+                        lines.append(f"_{caption}_")
+                lines.append("")
+
             claims = slide.get("claims", [])
             if claims:
                 lines.append("Claims:")
@@ -512,17 +641,30 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
 
         notes = self._safe(slide.get("notes", ""))
         notes_html = f"<aside class='speaker-notes' aria-label='Speaker notes'>{notes}</aside>" if notes else ""
+        visual_html = self._render_visual_panel(slide)
 
         if slide_type in {"title", "closing"}:
             body = f"<h1>{title}</h1><p class='subtitle'>{subtitle}</p>"
         elif slide_type in {"list", "tech", "delta", "demo", "impact", "future"}:
             items = slide.get("list_items", [])
             list_html = "".join(f"<li>{self._safe(item)}</li>" for item in items)
-            body = f"<h2>{title}</h2><ul class='slide-list'>{list_html}</ul>"
+            main = f"<h2>{title}</h2><ul class='slide-list'>{list_html}</ul>"
+            if visual_html:
+                body = f"<div class='slide-layout'><div class='slide-main'>{main}</div>{visual_html}</div>"
+            else:
+                body = main
         elif slide_type in {"problem", "solution", "content"}:
-            body = f"<h2>{title}</h2><div class='content'>{content}</div>"
+            main = f"<h2>{title}</h2><div class='content'>{content}</div>"
+            if visual_html:
+                body = f"<div class='slide-layout'><div class='slide-main'>{main}</div>{visual_html}</div>"
+            else:
+                body = main
         else:
-            body = f"<h2>{title}</h2><div class='content'>{content}</div>"
+            main = f"<h2>{title}</h2><div class='content'>{content}</div>"
+            if visual_html:
+                body = f"<div class='slide-layout'><div class='slide-main'>{main}</div>{visual_html}</div>"
+            else:
+                body = main
 
         claims_html = f"<div class='claims'>{''.join(claim_chips)}</div>" if claim_chips else ""
         evidence_html = f"<div class='evidence-strip'>{evidence_badges}</div>" if evidence_badges else ""
@@ -536,6 +678,66 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
             f"<section class='slide slide-{self._safe(slide_type)}' id='slide-{index}' data-index='{index}'>"
             f"{body}{claims_html}{evidence_html}{notes_html}{meta}</section>"
         )
+
+    def _render_visual_panel(self, slide: dict) -> str:
+        visuals = slide.get("visuals", [])
+        if not isinstance(visuals, list) or not visuals:
+            return ""
+
+        blocks: list[str] = []
+        for visual in visuals[:2]:
+            if not isinstance(visual, dict):
+                continue
+            src = self._resolve_visual_src(visual)
+            if not src:
+                continue
+
+            alt = self._safe(visual.get("alt", "Slide visual"))
+            caption = self._safe(visual.get("caption", ""))
+            modal_src = self._safe(src)
+
+            caption_html = f"<figcaption class='visual-caption'>{caption}</figcaption>" if caption else ""
+            blocks.append(
+                "<figure class='visual-item'>"
+                f"<button class='visual-thumb' type='button' data-modal-src='{modal_src}' data-modal-alt='{alt}' data-modal-caption='{caption}'>"
+                f"<img src='{modal_src}' alt='{alt}' loading='lazy' decoding='async' />"
+                "</button>"
+                f"{caption_html}"
+                "</figure>"
+            )
+
+        if not blocks:
+            return ""
+
+        return f"<aside class='visual-panel' aria-label='Slide visuals'>{''.join(blocks)}</aside>"
+
+    def _resolve_visual_src(self, visual: dict) -> str:
+        source = str(visual.get("source_path", "")).strip()
+        if not source:
+            return ""
+        if source.startswith("http://") or source.startswith("https://"):
+            return ""
+        if source.startswith("data:"):
+            return source
+
+        if not self.project_root:
+            return ""
+
+        candidate = (self.project_root / source).resolve()
+        try:
+            candidate.relative_to(self.project_root)
+        except ValueError:
+            return ""
+        if not candidate.exists() or not candidate.is_file():
+            return ""
+
+        mime = str(visual.get("mime", "")).strip()
+        if not mime:
+            mime = mimetypes.guess_type(str(candidate))[0] or "application/octet-stream"
+
+        raw = candidate.read_bytes()
+        encoded = base64.b64encode(raw).decode("ascii")
+        return f"data:{mime};base64,{encoded}"
 
     def _resolve_theme(self, requested: str) -> dict:
         if requested == "auto":

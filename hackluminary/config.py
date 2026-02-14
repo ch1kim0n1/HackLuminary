@@ -37,6 +37,21 @@ DEFAULT_CONFIG = {
         "copy_output_dir": None,
         "open_after_generate": False,
     },
+    "images": {
+        "enabled": True,
+        "mode": "auto",
+        "image_dirs": [],
+        "max_images_per_slide": 1,
+        "min_confidence": 0.72,
+        "visual_style": "mixed",
+        "max_image_bytes": 3_145_728,
+        "allowed_extensions": [".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"],
+    },
+    "telemetry": {
+        "enabled": False,
+        "anonymous": True,
+        "endpoint": "",
+    },
     "studio": {
         "enabled": True,
         "default_view": "notebook",
@@ -153,10 +168,82 @@ def _validate_config(config: dict) -> None:
             f"Invalid AI backend '{backend}'. Only llama.cpp is supported.",
         )
 
-    if config["privacy"].get("telemetry") not in {False, 0, None}:
+    image_mode = str(config["images"].get("mode", "auto"))
+    if image_mode not in {"off", "auto", "strict"}:
         raise HackLuminaryError(
             ErrorCode.CONFIG_ERROR,
-            "Telemetry must stay disabled for production offline policy.",
+            f"Invalid images.mode '{image_mode}'.",
+        )
+
+    visual_style = str(config["images"].get("visual_style", "mixed"))
+    if visual_style not in {"evidence", "screenshot", "mixed"}:
+        raise HackLuminaryError(
+            ErrorCode.CONFIG_ERROR,
+            f"Invalid images.visual_style '{visual_style}'.",
+        )
+
+    max_images = int(config["images"].get("max_images_per_slide", 1))
+    if max_images < 0 or max_images > 2:
+        raise HackLuminaryError(
+            ErrorCode.CONFIG_ERROR,
+            "images.max_images_per_slide must be between 0 and 2.",
+        )
+
+    min_conf = float(config["images"].get("min_confidence", 0.72))
+    if min_conf < 0 or min_conf > 1:
+        raise HackLuminaryError(
+            ErrorCode.CONFIG_ERROR,
+            "images.min_confidence must be between 0 and 1.",
+        )
+
+    max_bytes = int(config["images"].get("max_image_bytes", 3_145_728))
+    if max_bytes < 16_384:
+        raise HackLuminaryError(
+            ErrorCode.CONFIG_ERROR,
+            "images.max_image_bytes is too small.",
+        )
+
+    allowed_extensions = config["images"].get("allowed_extensions", [])
+    if not isinstance(allowed_extensions, list) or not allowed_extensions:
+        raise HackLuminaryError(
+            ErrorCode.CONFIG_ERROR,
+            "images.allowed_extensions must be a non-empty list.",
+        )
+    for ext in allowed_extensions:
+        if not str(ext).startswith("."):
+            raise HackLuminaryError(
+                ErrorCode.CONFIG_ERROR,
+                "images.allowed_extensions entries must start with '.'.",
+            )
+
+    telemetry_cfg = config.get("telemetry", {})
+    if not isinstance(telemetry_cfg.get("enabled", False), bool):
+        raise HackLuminaryError(
+            ErrorCode.CONFIG_ERROR,
+            "telemetry.enabled must be boolean.",
+        )
+    if not isinstance(telemetry_cfg.get("anonymous", True), bool):
+        raise HackLuminaryError(
+            ErrorCode.CONFIG_ERROR,
+            "telemetry.anonymous must be boolean.",
+        )
+    if not isinstance(telemetry_cfg.get("endpoint", ""), str):
+        raise HackLuminaryError(
+            ErrorCode.CONFIG_ERROR,
+            "telemetry.endpoint must be a string.",
+        )
+    endpoint = str(telemetry_cfg.get("endpoint", "")).strip()
+    if endpoint and not (endpoint.startswith("http://") or endpoint.startswith("https://")):
+        raise HackLuminaryError(
+            ErrorCode.CONFIG_ERROR,
+            "telemetry.endpoint must start with http:// or https://",
+        )
+
+    # Backward-compatible privacy gate from v2.1.
+    if config["privacy"].get("telemetry") not in {False, 0, None} and not telemetry_cfg.get("enabled", False):
+        raise HackLuminaryError(
+            ErrorCode.CONFIG_ERROR,
+            "Set [telemetry].enabled=true to explicitly enable telemetry.",
         )
 
     studio_view = config["studio"].get("default_view")

@@ -32,3 +32,16 @@ def test_session_save_and_load(tmp_path):
     # Ensure valid JSON persisted.
     parsed = json.loads(path.read_text(encoding="utf-8"))
     assert parsed["studio_schema_version"] == "1.0"
+
+
+def test_session_writes_snapshots_on_update(tmp_path):
+    payload = default_session()
+    payload["slide_order"] = ["title"]
+    save_session(tmp_path, payload)
+
+    payload["slide_order"] = ["title", "problem"]
+    save_session(tmp_path, payload)
+
+    snap_dir = get_studio_session_path(tmp_path).parent / "snapshots"
+    snapshots = list(snap_dir.glob("session-*.json"))
+    assert snapshots
