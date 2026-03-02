@@ -18,6 +18,7 @@ DEFAULT_CONFIG = {
         "mode": "hybrid",
         "format": "both",
         "theme": "default",
+        "logo": None,
         "max_slides": None,
         "strict_quality": True,
     },
@@ -83,6 +84,21 @@ DEFAULT_CONFIG = {
     "privacy": {
         "telemetry": False,
     },
+    "theme": {
+        "custom": {
+            "bg": None,
+            "panel": None,
+            "panel_alt": None,
+            "text": None,
+            "muted": None,
+            "accent": None,
+            "accent2": None,
+            "warning": None,
+            "danger": None,
+            "ok": None,
+            "overlay": None,
+        }
+    }
 }
 
 
@@ -165,7 +181,7 @@ def _validate_config(config: dict) -> None:
         )
 
     theme = config["general"].get("theme")
-    if theme not in {"default", "dark", "minimal", "colorful", "auto"}:
+    if theme not in {"default", "dark", "minimal", "colorful", "auto", "custom"}:
         raise HackLuminaryError(
             ErrorCode.CONFIG_ERROR,
             f"Invalid theme '{theme}'.",
