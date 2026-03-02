@@ -282,6 +282,7 @@ def cli() -> None:
 @click.option("--copy-output-dir", type=click.Path(), default=None)
 @click.option("--bundle", is_flag=True, default=False, help="Write notes.md and talk-track.md next to output.")
 @click.option("--debug", is_flag=True, default=False)
+@click.option("--zero-shot", is_flag=True, default=False, help="Enable JSON-only generation mode.")
 def generate_command(
     project_dir: str | None,
     project_dir_opt: str | None,
@@ -304,6 +305,7 @@ def generate_command(
     copy_output_dir: str | None,
     bundle: bool,
     debug: bool,
+    zero_shot: bool,
 ) -> None:
     """Generate presentation outputs for a project directory."""
 
@@ -333,6 +335,31 @@ def generate_command(
         visual_style=visual_style,
     )
 
+    # Only send progress/warnings to stderr when format is json (printed to
+    # stdout).  For file-based outputs PowerShell treats any stderr as a
+    # process failure, causing a false exit code 1.
+    use_stderr = fmt == "json"
+
+    def _cli_progress(step_index: int, total_steps: int, label: str) -> None:
+        """Simple textual progress bar for generation phases."""
+        if total_steps <= 0:
+            return
+        percent = max(0, min(100, int(step_index * 100 / total_steps)))
+        bar_width = 24
+        filled = int(bar_width * percent / 100)
+        bar = "#" * filled + "-" * (bar_width - filled)
+        # Only redirect progress to stderr when the output format is JSON
+        # (which is printed to stdout).  For html/markdown/both the output
+        # goes to files, so sending progress to stdout is safe and avoids
+        # PowerShell treating any stderr output as a process failure (exit 1).
+        click.echo(
+            f"\r[{bar}] {percent:3d}% {label:40}",
+            nl=False,
+            err=use_stderr,
+        )
+        if step_index >= total_steps:
+            click.echo("", err=use_stderr)
+
     started_at = time.perf_counter()
     result = run_generation(
         project_dir=project,
@@ -340,8 +367,19 @@ def generate_command(
         requested_slide_types=requested_slide_types,
         max_slides=max_slides,
         cli_overrides=overrides,
+        zero_shot=zero_shot,
+        progress_callback=_cli_progress,
     )
     elapsed = time.perf_counter() - started_at
+
+    # The llama.cpp background thread may have invalidated the Win32 console
+    # handle.  Re-initialise colorama so click.echo works again.
+    try:
+        import colorama as _colorama
+        _colorama.deinit()
+        _colorama.init(wrap=True, strip=False)
+    except Exception:
+        pass
 
     payload = result["payload"]
     resolved_fmt = result["config"]["general"]["format"]
@@ -404,7 +442,10 @@ def generate_command(
     )
 
     for warning in result.get("warnings", []):
-        click.echo(f"Warning: {warning}", err=True)
+        try:
+            click.echo(f"Warning: {warning}", err=use_stderr)
+        except OSError:
+            print(f"Warning: {warning}")
 
     if auto_open and html_path and html_path.exists():
         webbrowser.open(str(html_path))
@@ -1145,7 +1186,7 @@ def main() -> None:
     try:
         cli.main(args=argv, prog_name="hackluminary", standalone_mode=False)
     except HackLuminaryError as exc:
-        click.echo(str(exc), err=True)
+        print(str(exc), file=sys.stderr)
         if debug:
             traceback.print_exc()
         raise SystemExit(1)
@@ -1155,9 +1196,13 @@ def main() -> None:
     except SystemExit:
         raise
     except Exception as exc:  # pragma: no cover - defensive
-        click.echo(f"[{ErrorCode.RUNTIME_ERROR}] Unexpected failure: {exc}", err=True)
-        if debug:
-            traceback.print_exc()
+        # Avoid click.echo(err=True) here: on Windows the stderr handle may
+        # be invalid at this point (colorama OSError / Windows error 6).
+        try:
+            print(f"[{ErrorCode.RUNTIME_ERROR}] Unexpected failure: {exc}", file=sys.stderr)
+        except OSError:
+            print(f"[{ErrorCode.RUNTIME_ERROR}] Unexpected failure: {exc}")
+        traceback.print_exc()
         raise SystemExit(1)
 
 

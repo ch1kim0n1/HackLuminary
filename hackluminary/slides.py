@@ -92,10 +92,7 @@ def _title_slide(code_analysis: dict, doc_data: dict, git_context: dict, evidenc
     subtitle = doc_data.get("description") or "Hackathon-ready presentation generated from local project evidence."
     subtitle = subtitle.strip()[:220]
 
-    if git_context.get("available") and git_context.get("branch"):
-        subtitle = f"{subtitle} Current branch: {git_context['branch']}."
-
-    evidence_refs = _refs(["doc.title", "doc.description", "git.branch"], evidence_ids)
+    evidence_refs = _refs(["doc.title", "doc.description"], evidence_ids)
     return {
         "id": "title",
         "type": "title",
@@ -115,6 +112,22 @@ def _problem_slide(doc_data: dict, evidence_ids: set[str]) -> dict:
         )
 
     evidence_refs = _refs(["doc.problem", "doc.description", "repo.project"], evidence_ids)
+
+    # Split a flat paragraph into bullet-ready list items so the slide doesn't
+    # render as a tiny block of text in a massive empty card.
+    import re as _re
+    sentences = [s.strip() for s in _re.split(r"(?<=[.!?])\s+", content) if s.strip()]
+    if len(sentences) >= 2 and content.count("\n") < 2:
+        items = [s if s[-1:] in {".", "!", "?"} else s + "." for s in sentences]
+        return {
+            "id": "problem",
+            "type": "list",
+            "title": "The Problem",
+            "list_items": items,
+            "evidence_refs": evidence_refs,
+            "claims": [_claim_from_text(item, evidence_refs, confidence=0.9) for item in items],
+        }
+
     return {
         "id": "problem",
         "type": "content",
@@ -147,11 +160,6 @@ def _solution_slide(code_analysis: dict, doc_data: dict, evidence_ids: set[str])
 
 def _demo_slide(code_analysis: dict, doc_data: dict, evidence_ids: set[str]) -> dict:
     features = [item.strip() for item in doc_data.get("features", []) if item.strip()]
-    detected = code_analysis.get("features", [])
-
-    for item in detected:
-        if item not in features:
-            features.append(item)
 
     if not features:
         features = [
@@ -288,17 +296,23 @@ def _delta_slide(git_context: dict, evidence_ids: set[str]) -> dict:
 
 def _closing_slide(code_analysis: dict, doc_data: dict, git_context: dict, evidence_ids: set[str]) -> dict:
     language = code_analysis.get("primary_language", "software")
-    branch = git_context.get("branch")
-    subtitle = f"{doc_data.get('title', 'Project')} · Built with {language}"
-    if branch:
-        subtitle += f" · Branch {branch}"
+    project_title = doc_data.get("title") or code_analysis.get("project_name") or "Project"
+    subtitle = f"{project_title} · Built with {language}"
 
-    evidence_refs = _refs(["repo.languages", "git.branch", "doc.title"], evidence_ids)
+    evidence_refs = _refs(["repo.languages", "doc.title", "repo.files", "repo.lines"], evidence_ids)
+    stats = {
+        "project": project_title,
+        "language": language,
+        "files": code_analysis.get("file_count", 0),
+        "lines": code_analysis.get("total_lines", 0),
+        "frameworks": code_analysis.get("frameworks", [])[:3],
+    }
     return {
         "id": "closing",
         "type": "closing",
         "title": "Thank You",
         "subtitle": subtitle,
+        "stats": stats,
         "evidence_refs": evidence_refs,
         "claims": [_claim_from_text(subtitle, evidence_refs, confidence=0.85)],
     }

@@ -62,6 +62,17 @@ def attach_visuals_to_slides(
                     chosen.append(_to_slide_visual(slide, media, score))
                     break
 
+        # Remote-fetched images carry assigned_slide_id — attach them directly
+        # to their intended slide regardless of the confidence gate so that the
+        # fetched image always lands where it was queried for.
+        if not chosen:
+            slide_id = str(slide.get("id", slide.get("type", ""))).lower()
+            for media in media_catalog:
+                if str(media.get("assigned_slide_id", "")).lower() == slide_id:
+                    chosen.append(_to_slide_visual(slide, media, 1.0))
+                    if len(chosen) >= max_images:
+                        break
+
         slide["visuals"] = chosen
         attached += len(chosen)
 
@@ -113,19 +124,26 @@ def score_media_for_slide(slide: dict, media: dict, visual_style: str = "mixed")
 
 
 def _to_slide_visual(slide: dict, media: dict, confidence: float) -> dict:
+    import os as _os
     source_path = str(media.get("source_path", ""))
     alt = str(media.get("alt", "")).strip()
     if not alt:
         alt = f"Visual for {str(slide.get('title', 'slide')).strip() or 'slide'}"
 
-    caption = alt
-    if caption == alt and source_path:
-        stem = source_path.rsplit("/", 1)[-1].rsplit(".", 1)[0].replace("-", " ").replace("_", " ")
-        if stem and stem.lower() != alt.lower():
-            caption = f"{alt} ({stem})"
+    # For remote-fetched images the alt is already a human label —
+    # no need to append the cache filename.
+    if str(media.get("kind", "")) == "remote_fetched":
+        caption = alt
+    else:
+        caption = alt
+        if source_path:
+            stem = _os.path.splitext(_os.path.basename(source_path))[0]
+            stem = stem.replace("-", " ").replace("_", " ")
+            if stem and stem.lower() != alt.lower():
+                caption = f"{alt} ({stem})"
 
     refs = list(slide.get("evidence_refs", []))[:3]
-    return {
+    visual: dict = {
         "id": str(media.get("id", "")),
         "type": "image",
         "source_path": source_path,
@@ -137,6 +155,13 @@ def _to_slide_visual(slide: dict, media: dict, confidence: float) -> dict:
         "height": media.get("height"),
         "sha256": media.get("sha256"),
     }
+    # Pass through remote-fetch fields so the renderer can resolve without
+    # needing to re-read the file through the project-root path check.
+    if media.get("preview_data_uri"):
+        visual["preview_data_uri"] = media["preview_data_uri"]
+    if media.get("mime"):
+        visual["mime"] = media["mime"]
+    return visual
 
 
 def _slide_tokens(slide: dict) -> set[str]:

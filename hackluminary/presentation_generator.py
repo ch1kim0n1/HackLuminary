@@ -145,35 +145,135 @@ body {{
   padding: 20px 16px 120px;
 }}
 .slide {{
-  min-height: 76vh;
   margin: 16px 0;
   border-radius: 22px;
   background: linear-gradient(165deg, var(--panel), var(--panel_alt));
   border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
-  padding: 28px;
+  padding: 44px 40px;
   box-shadow: 0 20px 52px rgba(2, 6, 23, 0.36);
   position: relative;
 }}
-.slide h1, .slide h2 {{ margin: 0 0 14px; line-height: 1.18; letter-spacing: -0.015em; }}
+.slide.slide-title {{
+  min-height: 88vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border: none;
+  border-radius: 22px;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 30% 40%, color-mix(in srgb, var(--accent2) 28%, transparent), transparent 65%),
+    radial-gradient(ellipse at 75% 70%, color-mix(in srgb, var(--accent) 24%, transparent), transparent 60%),
+    linear-gradient(160deg, var(--panel), var(--panel_alt));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent2) 40%, transparent),
+    0 32px 80px rgba(2, 6, 23, 0.60);
+}}
+.slide.slide-title .title-hero,
+.slide.slide-closing .title-hero {{
+  max-width: 820px;
+  padding: 20px;
+}}
+.slide.slide-title h1 {{
+  font-size: clamp(3rem, 7vw, 5.5rem);
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, var(--text) 40%, var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0 0 18px;
+}}
+.slide.slide-title .subtitle {{
+  font-size: clamp(1rem, 1.8vw, 1.35rem);
+  color: var(--muted);
+  max-width: 60ch;
+  margin: 0 auto;
+  line-height: 1.7;
+}}
+.slide h1, .slide h2 {{ margin: 0 0 20px; line-height: 1.18; letter-spacing: -0.015em; }}
 .slide h1 {{ font-size: clamp(2rem, 3.2vw, 3.2rem); }}
 .slide h2 {{ font-size: clamp(1.5rem, 2.3vw, 2.4rem); }}
 .subtitle {{ font-size: 1.08rem; line-height: 1.6; color: var(--muted); max-width: 90ch; }}
-.content {{ font-size: 1.05rem; line-height: 1.72; white-space: pre-wrap; }}
+.content {{ font-size: 1.08rem; line-height: 1.8; }}
+.content p {{ margin: 0 0 14px; }}
+.content ul {{ margin: 10px 0; padding-left: 0; list-style: none; }}
+.content ul li {{
+  margin: 8px 0;
+  padding: 12px 16px;
+  background: color-mix(in srgb, var(--panel_alt) 90%, white 10%);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+  border-radius: 12px;
+  line-height: 1.6;
+}}
+.content strong {{ color: var(--accent2); font-weight: 700; }}
+.content code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.88em;
+  background: color-mix(in srgb, var(--accent2) 15%, transparent);
+  padding: 2px 6px; border-radius: 5px; }}
 .slide-list {{ margin: 0; padding-left: 1.1rem; columns: 2 320px; column-gap: 1.8rem; }}
 .slide-list li {{
   break-inside: avoid;
-  margin: 0.48rem 0;
+  margin: 0.52rem 0;
   line-height: 1.6;
   background: color-mix(in srgb, var(--panel_alt) 90%, white 10%);
   border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
   border-radius: 12px;
-  padding: 10px 12px;
-  list-style-position: inside;
+  padding: 12px 16px 12px 42px;
+  list-style: none;
+  position: relative;
 }}
-.slide.slide-problem {{ border-left: 5px solid var(--danger); }}
-.slide.slide-solution {{ border-left: 5px solid var(--ok); }}
-.slide.slide-tech {{ border-left: 5px solid var(--accent2); }}
-.slide.slide-delta {{ border-left: 5px solid var(--warning); }}
+.slide-list li::before {{
+  content: "—";
+  position: absolute;
+  left: 14px;
+  top: 12px;
+  color: var(--accent2);
+  font-weight: 700;
+  font-size: 0.85em;
+  line-height: 1.6;
+}}
+.slide.slide-problem, [data-slide-id="problem"] {{ border-left: 5px solid var(--danger); }}
+.slide.slide-solution, [data-slide-id="solution"] {{ border-left: 5px solid var(--ok); }}
+.slide.slide-tech, [data-slide-id="tech"] {{ border-left: 5px solid var(--accent2); }}
+.slide.slide-delta, [data-slide-id="delta"] {{ border-left: 5px solid var(--warning); }}
+[data-slide-id="demo"] {{ border-left: 5px solid var(--accent); }}
+[data-slide-id="impact"] {{ border-left: 5px solid var(--warning); }}
+[data-slide-id="future"] {{ border-left: 5px solid var(--accent); }}
+[data-slide-id="problem"] h2 {{ color: var(--danger); }}
+[data-slide-id="solution"] h2 {{ color: var(--ok); }}
+[data-slide-id="tech"] h2 {{ color: var(--accent2); }}
+[data-slide-id="demo"] h2 {{ color: var(--accent); }}
+[data-slide-id="impact"] h2 {{ color: var(--warning); }}
+[data-slide-id="future"] h2 {{ color: var(--accent); }}
+.slide.slide-closing {{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background:
+    radial-gradient(ellipse at 60% 30%, color-mix(in srgb, var(--ok) 15%, transparent), transparent 60%),
+    linear-gradient(160deg, var(--panel), var(--panel_alt));
+  border-color: color-mix(in srgb, var(--ok) 30%, transparent);
+  padding: 80px 40px;
+}}
+.closing-stats {{
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+  margin-top: 22px;
+  flex-wrap: wrap;
+}}
+.stat-item {{
+  font-size: 0.92rem;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}}
+.stat-sep {{
+  color: color-mix(in srgb, var(--muted) 40%, transparent);
+  font-size: 0.85rem;
+  user-select: none;
+}}
 .slide-layout {{
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
@@ -242,7 +342,8 @@ body {{
   margin-top: 8px;
   text-align: center;
 }}
-.claims {{ margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px; }}
+.claims {{ margin-top: 18px; display: none; flex-wrap: wrap; gap: 8px; }}
+body.evidence-mode .claims {{ display: flex; }}
 .claim-chip {{
   border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
   background: color-mix(in srgb, var(--panel_alt) 88%, var(--accent) 12%);
@@ -253,7 +354,8 @@ body {{
   font-size: 0.82rem;
   cursor: pointer;
 }}
-.evidence-strip {{ margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; }}
+.evidence-strip {{ margin-top: 16px; display: none; gap: 8px; flex-wrap: wrap; }}
+body.evidence-mode .evidence-strip {{ display: flex; }}
 .evidence-badge {{
   display: inline-block;
   font-size: 0.75rem;
@@ -274,8 +376,9 @@ body.presenter-mode .speaker-notes {{ display: block; }}
   margin-top: 16px;
   padding-top: 9px;
   border-top: 1px dashed color-mix(in srgb, var(--accent2) 28%, transparent);
-  font-size: 0.8rem;
-  color: var(--muted);
+  font-size: 0.78rem;
+  color: color-mix(in srgb, var(--muted) 60%, transparent);
+  letter-spacing: 0.04em;
 }}
 .toolbar {{
   position: fixed;
@@ -303,16 +406,18 @@ body.presenter-mode .speaker-notes {{ display: block; }}
 }}
 .timeline {{ display: flex; gap: 6px; margin-left: 8px; align-items: center; }}
 .timeline-dot {{
-  width: 44px;
-  height: 44px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--accent2) 52%, transparent);
+  border: 2px solid color-mix(in srgb, var(--accent2) 52%, transparent);
   background: transparent;
   padding: 0;
   cursor: pointer;
   flex-shrink: 0;
+  transition: background 0.15s, transform 0.15s;
 }}
-.timeline-dot.active {{ background: var(--accent2); }}
+.timeline-dot:hover {{ background: color-mix(in srgb, var(--accent2) 40%, transparent); transform: scale(1.3); }}
+.timeline-dot.active {{ background: var(--accent2); transform: scale(1.1); }}
 .presenter-hud {{
   position: fixed;
   top: 12px;
@@ -440,6 +545,7 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
   <button class="control-btn" data-nav="last">Last</button>
   <button class="control-btn" id="togglePresenter">Presenter</button>
   <button class="control-btn" id="togglePalette">Shortcuts</button>
+  <button class="control-btn" id="toggleEvidence" title="Show/hide evidence references">Evidence</button>
   <div class="timeline" id="timeline">{timeline}</div>
 </div>
 <div class="image-modal" id="imageModal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Image preview">
@@ -699,6 +805,9 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
 
   document.getElementById('togglePresenter')?.addEventListener('click', togglePresenter);
   document.getElementById('togglePalette')?.addEventListener('click', () => togglePalette());
+  document.getElementById('toggleEvidence')?.addEventListener('click', () => {{
+    document.body.classList.toggle('evidence-mode');
+  }});
   document.getElementById('closeImageModal')?.addEventListener('click', closeImageModal);
   imageModal?.addEventListener('click', (event) => {{
     if (event.target === imageModal) closeImageModal();
@@ -845,23 +954,46 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
         visual_html = self._render_visual_panel(slide)
 
         if slide_type in {"title", "closing"}:
-            body = f"<h1>{title}</h1><p class='subtitle'>{subtitle}</p>"
+            subtitle_rendered = self._render_inline_md(slide.get("subtitle", ""))
+            if slide_type == "closing":
+                stats = slide.get("stats") or {}
+                stats_parts: list[str] = []
+                if stats.get("files"):
+                    stats_parts.append(f"<span class='stat-item'>{self._safe(str(stats['files']))} files</span>")
+                if stats.get("lines"):
+                    lines_fmt = f"{int(stats['lines']):,}"
+                    stats_parts.append(f"<span class='stat-item'>{lines_fmt} lines</span>")
+                if stats.get("language"):
+                    stats_parts.append(f"<span class='stat-item'>{self._safe(str(stats['language']))}</span>")
+                if stats.get("frameworks"):
+                    fw = ", ".join(self._safe(str(f)) for f in stats["frameworks"][:3])
+                    stats_parts.append(f"<span class='stat-item'>{fw}</span>")
+                sep = "<span class='stat-sep'>&middot;</span>"
+                stats_html = (
+                    f"<div class='closing-stats'>{sep.join(stats_parts)}</div>"
+                    if stats_parts else ""
+                )
+                body = f"<div class='title-hero'><h1>{title}</h1><p class='subtitle'>{subtitle_rendered}</p>{stats_html}</div>"
+            else:
+                body = f"<div class='title-hero'><h1>{title}</h1><p class='subtitle'>{subtitle_rendered}</p></div>"
         elif slide_type in {"list", "tech", "delta", "demo", "impact", "future"}:
             items = slide.get("list_items", [])
-            list_html = "".join(f"<li>{self._safe(item)}</li>" for item in items)
+            list_html = "".join(f"<li>{self._render_inline_md(str(item))}</li>" for item in items)
             main = f"<h2>{title}</h2><ul class='slide-list'>{list_html}</ul>"
             if visual_html:
                 body = f"<div class='slide-layout'><div class='slide-main'>{main}</div>{visual_html}</div>"
             else:
                 body = main
         elif slide_type in {"problem", "solution", "content"}:
-            main = f"<h2>{title}</h2><div class='content'>{content}</div>"
+            rendered_content = self._render_md(slide.get("content", ""))
+            main = f"<h2>{title}</h2><div class='content'>{rendered_content}</div>"
             if visual_html:
                 body = f"<div class='slide-layout'><div class='slide-main'>{main}</div>{visual_html}</div>"
             else:
                 body = main
         else:
-            main = f"<h2>{title}</h2><div class='content'>{content}</div>"
+            rendered_content = self._render_md(slide.get("content", ""))
+            main = f"<h2>{title}</h2><div class='content'>{rendered_content}</div>"
             if visual_html:
                 body = f"<div class='slide-layout'><div class='slide-main'>{main}</div>{visual_html}</div>"
             else:
@@ -870,19 +1002,17 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
         claims_html = f"<div class='claims'>{''.join(claim_chips)}</div>" if claim_chips else ""
         evidence_html = f"<div class='evidence-strip'>{evidence_badges}</div>" if evidence_badges else ""
 
-        meta = f"<div class='meta'>Slide {index}/{len(self.slides)}"
-        if refs:
-            meta += f" · {len(refs)} evidence reference(s)"
-        meta += "</div>"
+        meta = f"<div class='meta'>{index} / {len(self.slides)}</div>"
 
         title_id = f"slide-title-{index}"
         if slide_type in {"title", "closing"}:
             body = body.replace("<h1>", f"<h1 id='{title_id}'>", 1)
         else:
             body = body.replace("<h2>", f"<h2 id='{title_id}'>", 1)
+        slide_id_attr = self._safe(slide.get("id", slide_type))
         return (
             f"<section class='slide slide-{self._safe(slide_type)}' id='slide-{index}' data-index='{index}' "
-            f"aria-labelledby='{title_id}' role='region'>"
+            f"data-slide-id='{slide_id_attr}' aria-labelledby='{title_id}' role='region'>"
             f"{body}{claims_html}{evidence_html}{notes_html}{meta}</section>"
         )
 
@@ -920,6 +1050,11 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
         return f"<aside class='visual-panel' aria-label='Slide visuals'>{''.join(blocks)}</aside>"
 
     def _resolve_visual_src(self, visual: dict) -> str:
+        # Remote-fetched entries carry an embedded data URI — use it directly.
+        preview = str(visual.get("preview_data_uri", "")).strip()
+        if preview.startswith("data:"):
+            return preview
+
         source = str(visual.get("source_path", "")).strip()
         if not source:
             return ""
@@ -928,16 +1063,21 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
         if source.startswith("data:"):
             return source
 
-        if not self.project_root:
-            return ""
-
-        candidate = (self.project_root / source).resolve()
-        try:
-            candidate.relative_to(self.project_root)
-        except ValueError:
-            return ""
-        if not candidate.exists() or not candidate.is_file():
-            return ""
+        candidate = Path(source)
+        if candidate.is_absolute():
+            # Absolute paths are allowed for remote-cache files outside project root.
+            if not candidate.exists() or not candidate.is_file():
+                return ""
+        else:
+            if not self.project_root:
+                return ""
+            candidate = (self.project_root / source).resolve()
+            try:
+                candidate.relative_to(self.project_root)
+            except ValueError:
+                return ""
+            if not candidate.exists() or not candidate.is_file():
+                return ""
 
         mime = str(visual.get("mime", "")).strip()
         if not mime:
@@ -970,6 +1110,81 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
                 "source_path": str(item.get("source_path", ""))[:200],
             }
         return out
+
+    def _render_inline_md(self, raw: str) -> str:
+        """Convert inline Markdown (bold, italic, backtick-code) to safe HTML.
+
+        Unlike ``_render_md`` this does not produce block-level wrappers, making
+        it safe for use inside ``<li>`` and ``<p>`` elements.
+        """
+        import re as _re
+        text = html.escape(str(raw), quote=False)
+        # **bold** / __bold__
+        text = _re.sub(
+            r"\*\*(.+?)\*\*|__(.+?)__",
+            lambda m: f"<strong>{m.group(1) or m.group(2)}</strong>",
+            text,
+        )
+        # *italic* / _italic_ (not inside words)
+        text = _re.sub(
+            r"(?<![\w])\*(.+?)\*(?![\w])|(?<![\w])_(.+?)_(?![\w])",
+            lambda m: f"<em>{m.group(1) or m.group(2)}</em>",
+            text,
+        )
+        # `code`
+        text = _re.sub(
+            r"`(.+?)`",
+            lambda m: f"<code>{html.escape(m.group(1))}</code>",
+            text,
+        )
+        return text
+
+    def _render_md(self, raw: str) -> str:
+        """Convert a subset of Markdown to safe HTML for slide content."""
+        import re as _re
+
+        # Split into lines and process block-level elements.
+        lines = raw.splitlines()
+        out: list[str] = []
+        in_list = False
+
+        def _inline(text: str) -> str:
+            """Apply inline markdown conversions to already-escaped HTML text."""
+            # We receive plain text; escape it first, then apply patterns.
+            text = html.escape(text, quote=False)
+            # **bold** / __bold__
+            text = _re.sub(r"\*\*(.+?)\*\*|__(.+?)__",
+                           lambda m: f"<strong>{m.group(1) or m.group(2)}</strong>", text)
+            # *italic* / _italic_  (not inside words)
+            text = _re.sub(r"(?<![\w])\*(.+?)\*(?![\w])|(?<![\w])_(.+?)_(?![\w])",
+                           lambda m: f"<em>{m.group(1) or m.group(2)}</em>", text)
+            # `code`
+            text = _re.sub(r"`(.+?)`",
+                           lambda m: f"<code>{html.escape(m.group(1))}</code>", text)
+            return text
+
+        for line in lines:
+            stripped = line.strip()
+            # Bullet list items
+            m = _re.match(r"^[-*]\s+(.*)", stripped)
+            if m:
+                if not in_list:
+                    out.append("<ul>")
+                    in_list = True
+                out.append(f"<li>{_inline(m.group(1))}</li>")
+                continue
+            # Close list if we were in one
+            if in_list:
+                out.append("</ul>")
+                in_list = False
+            if not stripped:
+                continue
+            out.append(f"<p>{_inline(stripped)}</p>")
+
+        if in_list:
+            out.append("</ul>")
+
+        return "\n".join(out)
 
     def _safe(self, value: object) -> str:
         return html.escape(str(value), quote=True)

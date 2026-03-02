@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Callable, Protocol
 
 from .ai_pipeline import enhance_slides_with_ai
 from .analyzer import CodebaseAnalyzer
@@ -11,6 +12,7 @@ from .document_parser import DocumentParser
 from .errors import ErrorCode, HackLuminaryError
 from .evidence import build_evidence, evidence_index
 from .git_context import collect_git_context
+from .image_fetcher import fetch_images_for_slides
 from .image_indexer import index_project_images
 from .presentation_generator import PresentationGenerator
 from .quality import enforce_quality, evaluate_quality
@@ -18,14 +20,47 @@ from .slides import build_deterministic_slides, resolve_slide_types
 from .visual_selector import attach_visuals_to_slides
 
 
+class ProgressCallback(Protocol):
+    def __call__(self, step_index: int, total_steps: int, label: str) -> None: ...
+
+
 def run_generation(
-    project_dir: str | Path,
+    project_dir: str,
     additional_docs: list[str] | None = None,
     requested_slide_types: list[str] | None = None,
     max_slides: int | None = None,
     cli_overrides: dict | None = None,
+    zero_shot: bool = False,
+    progress_callback: ProgressCallback | None = None,
 ) -> dict:
     """Generate slide payload and rendered outputs using resolved config."""
+
+    steps = [
+        "Loading configuration",
+        "Analyzing codebase",
+        "Parsing documents",
+        "Collecting git context",
+        "Indexing images",
+        "Building evidence",
+        "Building deterministic slides",
+        "Fetching remote images",
+        "Enhancing slides with AI",
+        "Attaching visuals",
+        "Evaluating quality and rendering",
+    ]
+    total_steps = len(steps)
+    current_step = 0
+
+    def _notify(label: str) -> None:
+        nonlocal current_step
+        current_step += 1
+        if progress_callback is None:
+            return
+        try:
+            progress_callback(current_step, total_steps, label)
+        except Exception:
+            # Progress reporting should never break generation.
+            pass
 
     project_path = Path(project_dir).resolve()
     if not project_path.exists() or not project_path.is_dir():
@@ -35,12 +70,15 @@ def run_generation(
         )
 
     config = load_resolved_config(project_path, cli_overrides=cli_overrides)
+    _notify("Loading configuration")
 
     analyzer = CodebaseAnalyzer(project_path)
     code_analysis = analyzer.analyze()
+    _notify("Analyzing codebase")
 
     parser = DocumentParser(project_path, additional_docs=additional_docs)
     doc_data = parser.parse()
+    _notify("Parsing documents")
 
     git_cfg = config["git"]
     git_context = collect_git_context(
@@ -48,6 +86,7 @@ def run_generation(
         include_branch_context=bool(git_cfg.get("include_branch_context", True)),
         base_branch=git_cfg.get("base_branch"),
     )
+    _notify("Collecting git context")
 
     image_cfg = config.get("images", {})
     image_mode = str(image_cfg.get("mode", "off")).lower()
@@ -66,6 +105,9 @@ def run_generation(
         )
         media_catalog = indexed["media_catalog"]
         image_index_warnings.extend(indexed.get("warnings", []))
+        _notify("Indexing images")
+    else:
+        _notify("Skipping image indexing")
 
     evidence = build_evidence(
         code_analysis,
@@ -75,12 +117,20 @@ def run_generation(
         media_catalog=media_catalog,
     )
     evidence_map = evidence_index(evidence)
+    _notify("Building evidence")
 
     resolved_max_slides = max_slides if max_slides is not None else config["general"].get("max_slides")
+    # A meaningful delta only exists when the current branch diverges from the
+    # base branch.  Comparing main→main always shows zero changes and wastes a
+    # slide slot, so we suppress it.
+    has_meaningful_delta = (
+        bool(git_context.get("available") and git_context.get("base_branch"))
+        and git_context.get("branch") != git_context.get("base_branch")
+    )
     slide_types = resolve_slide_types(
         requested=requested_slide_types,
         max_slides=resolved_max_slides,
-        has_git_context=bool(git_context.get("available") and git_context.get("base_branch")),
+        has_git_context=has_meaningful_delta,
     )
 
     deterministic = build_deterministic_slides(
@@ -90,8 +140,29 @@ def run_generation(
         evidence_ids=set(evidence_map.keys()),
         slide_types=slide_types,
     )
+    _notify("Building deterministic slides")
 
-    slides, quality_report = enhance_slides_with_ai(deterministic, evidence, config)
+    # Fetch remote images (Wikimedia Commons) for slides that have no local
+    # images, then merge them into media_catalog before AI enhancement so the
+    # quality evaluator and visual selector can see them.
+    remote_image_cfg = config.get("images", {}).get("remote", {})
+    remote_fetch_enabled = bool(remote_image_cfg.get("enabled", True)) and image_mode != "off"
+    if remote_fetch_enabled:
+        try:
+            remote_entries = fetch_images_for_slides(
+                slides=deterministic,
+                code_analysis=code_analysis,
+                config=config,
+            )
+            media_catalog.extend(remote_entries)
+        except Exception:  # noqa: BLE001 — remote fetch must never crash generation
+            pass
+    _notify("Fetching remote images")
+
+    # Notify BEFORE the AI call so the progress bar reflects the current work
+    # rather than staying frozen at the previous step for the entire LLM run.
+    _notify("Enhancing slides with AI")
+    slides, quality_report = enhance_slides_with_ai(deterministic, evidence, config, zero_shot=zero_shot)
 
     if image_mode != "off":
         slides, _visual_summary = attach_visuals_to_slides(
@@ -102,6 +173,9 @@ def run_generation(
             min_confidence=float(image_cfg.get("min_confidence", 0.72)),
             visual_style=str(image_cfg.get("visual_style", "mixed")),
         )
+        _notify("Attaching visuals")
+    else:
+        _notify("Skipping visuals attachment")
 
     quality_report = evaluate_quality(
         slides,
@@ -159,6 +233,8 @@ def run_generation(
     warnings.extend(parser.warnings)
     warnings.extend(git_context.get("warnings", []))
     warnings.extend(image_index_warnings)
+
+    _notify("Evaluating quality and rendering")
 
     return {
         "config": config,

@@ -142,7 +142,6 @@ def install_model(alias: str, force: bool = False) -> Path:
             repo_id=model["repo_id"],
             filename=model["filename"],
             local_dir=str(target_dir),
-            local_dir_use_symlinks=False,
         )
     except Exception as exc:  # pragma: no cover - network-sensitive
         raise HackLuminaryError(

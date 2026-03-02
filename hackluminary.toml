@@ -1,0 +1,7 @@
+[general]
+project_dir = "C:\\Users\\Vladislav Kondratyev\\Desktop\\GitHub Repos\\PyPi\\DocGenie"
+
+[ai]
+model_alias = "qwen2.5-3b-instruct-q4_k_m"
+max_tokens = 400
+request_timeout = 60

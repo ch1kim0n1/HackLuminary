@@ -407,6 +407,13 @@ class CodebaseAnalyzer:
 
         self.frameworks = detected
 
+    # Top-level directory names that should be excluded from feature detection.
+    # Files in these folders are demo/test artefacts, not the project's own code.
+    _FEATURE_EXCLUDE_DIRS = {
+        "examples", "example", "sample", "samples",
+        "tests", "test", "spec", "fixtures", "demo",
+    }
+
     def _detect_features(self) -> None:
         corpus = []
 
@@ -414,7 +421,14 @@ class CodebaseAnalyzer:
         if readme.exists():
             corpus.append(readme.read_text(encoding="utf-8", errors="ignore").lower())
 
-        for relative_path in self.key_files[:5]:
+        # Only scan key files that live at the root or one level deep in a
+        # non-demo directory.  This prevents example projects bundled inside
+        # the repo (e.g. examples/sample_project/main.py) from polluting the
+        # feature detection with their own DB/API/payments imports.
+        for relative_path in self.key_files[:10]:
+            parts = Path(relative_path).parts
+            if len(parts) > 1 and parts[0].lower() in self._FEATURE_EXCLUDE_DIRS:
+                continue
             path = self.project_path / relative_path
             if path.exists():
                 text = self._safe_read_text(path)

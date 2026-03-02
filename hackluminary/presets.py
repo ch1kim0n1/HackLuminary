@@ -9,11 +9,13 @@ PRESETS: dict[str, dict] = {
         "description": "Fast deterministic deck for a rapid demo run.",
         "general": {
             "mode": "deterministic",
-            "theme": "minimal",
+            "theme": "default",
             "strict_quality": True,
             "format": "both",
         },
-        "slides": ["title", "problem", "solution", "demo", "delta", "closing"],
+        # delta is included here but will be silently dropped by pipeline.py
+        # when base_branch == branch (no meaningful diff).
+        "slides": ["title", "problem", "solution", "demo", "tech", "delta", "closing"],
         "max_slides": 6,
     },
     "demo-day": {

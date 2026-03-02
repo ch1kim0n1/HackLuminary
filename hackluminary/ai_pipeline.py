@@ -10,7 +10,7 @@ from .models import resolve_model_path
 from .quality import enforce_quality, evaluate_quality
 
 
-def enhance_slides_with_ai(slides: list[dict], evidence: list[dict], config: dict) -> tuple[list[dict], dict]:
+def enhance_slides_with_ai(slides: list[dict], evidence: list[dict], config: dict, zero_shot: bool = False) -> tuple[list[dict], dict]:
     """Optionally enhance deterministic slides using local llama.cpp model output."""
 
     mode = config["general"]["mode"]
@@ -25,25 +25,39 @@ def enhance_slides_with_ai(slides: list[dict], evidence: list[dict], config: dic
     backend = _load_backend(config)
 
     try:
-        payload = backend.generate_json(
-            _build_prompt(slides, evidence),
-            max_tokens=int(config["ai"].get("max_tokens", 700)),
-            temperature=float(config["ai"].get("temperature", 0.2)),
-            top_p=float(config["ai"].get("top_p", 0.9)),
-        )
+        if zero_shot:
+            payload = backend.generate_json_zero_shot(
+                _build_prompt(slides, evidence),
+                max_tokens=int(config["ai"].get("max_tokens", 700)),
+            )
+        else:
+            payload = backend.generate_json(
+                _build_prompt(slides, evidence),
+                max_tokens=int(config["ai"].get("max_tokens", 700)),
+                temperature=float(config["ai"].get("temperature", 0.2)),
+                top_p=float(config["ai"].get("top_p", 0.9)),
+            )
         merged = _merge_ai_payload(slides, payload)
-    except HackLuminaryError:
-        if mode == "hybrid" and not strict_quality:
+    except HackLuminaryError as exc:
+        # In hybrid mode the AI step is always best-effort: any failure
+        # (timeout, bad JSON, missing model …) falls back to the deterministic
+        # slides rather than crashing.  strict_quality only gates the quality
+        # *validation* gate below, not whether an AI failure is fatal.
+        if mode == "hybrid":
             report = evaluate_quality(slides)
             report.setdefault("warnings", []).append(
-                "AI enhancement was skipped due to backend or schema issues."
+                f"AI enhancement was skipped and deterministic slides were used: {exc}"
             )
+            enforce_quality(report, strict_quality)
             return slides, report
         raise
     except Exception as exc:
-        if mode == "hybrid" and not strict_quality:
+        if mode == "hybrid":
             report = evaluate_quality(slides)
-            report.setdefault("warnings", []).append(f"AI enhancement skipped: {exc}")
+            report.setdefault("warnings", []).append(
+                f"AI enhancement skipped (unexpected error), using deterministic slides: {exc}"
+            )
+            enforce_quality(report, strict_quality)
             return slides, report
         raise HackLuminaryError(
             ErrorCode.RUNTIME_ERROR,
@@ -73,10 +87,24 @@ def _load_backend(config: dict) -> LlamaCppBackend:
             hint=f"Run: hackluminary models install {alias}",
         )
 
-    return LlamaCppBackend(model_path)
+    request_timeout = int(config["ai"].get("request_timeout", 60))
+
+    return LlamaCppBackend(model_path, n_ctx=4096, request_timeout=request_timeout)
+
+
+# Characters limit for the full prompt serialisation.  At ~3-4 chars/token
+# this stays well inside the default 8192-token context window.
+_MAX_PROMPT_CHARS = 10_000
+# Maximum number of evidence items included in the prompt before truncation.
+_MAX_EVIDENCE_ITEMS = 15
 
 
 def _build_prompt(slides: list[dict], evidence: list[dict]) -> str:
+    # Trim evidence to avoid blowing the model's context window.  Large
+    # evidence sets (hundreds of items) make the prompt enormous and cause
+    # the model to either crawl or time out entirely.
+    truncated_evidence: list[dict] = evidence[:_MAX_EVIDENCE_ITEMS]
+
     spec = {
         "task": "Improve slide wording while staying faithful to evidence.",
         "rules": [
@@ -98,9 +126,17 @@ def _build_prompt(slides: list[dict], evidence: list[dict]) -> str:
             ]
         },
         "slides": slides,
-        "evidence": evidence,
+        "evidence": truncated_evidence,
     }
-    return json.dumps(spec, ensure_ascii=False)
+    prompt = json.dumps(spec, ensure_ascii=False)
+
+    # Hard-cap: drop evidence items one by one until the prompt fits.
+    while len(prompt) > _MAX_PROMPT_CHARS and truncated_evidence:
+        truncated_evidence = truncated_evidence[:-1]
+        spec["evidence"] = truncated_evidence
+        prompt = json.dumps(spec, ensure_ascii=False)
+
+    return prompt
 
 
 def _merge_ai_payload(slides: list[dict], payload: dict) -> list[dict]:

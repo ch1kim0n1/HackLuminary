@@ -29,9 +29,12 @@ DEFAULT_CONFIG = {
         "enabled": True,
         "backend": "llama.cpp",
         "model_alias": "qwen2.5-3b-instruct-q4_k_m",
-        "max_tokens": 700,
+        "max_tokens": 400,
         "top_p": 0.9,
         "temperature": 0.2,
+        # Fallback timeout for hybrid mode: if AI hasn't finished by this many
+        # seconds, deterministic slides are used instead of crashing.
+        "request_timeout": 60,
     },
     "output": {
         "copy_output_dir": None,
@@ -46,6 +49,13 @@ DEFAULT_CONFIG = {
         "visual_style": "mixed",
         "max_image_bytes": 3_145_728,
         "allowed_extensions": [".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"],
+        "remote": {
+            "enabled": True,
+            "provider": "wikimedia",
+            "timeout_sec": 5.0,
+            "max_image_bytes": 2_097_152,
+            "cache_dir": None,
+        },
     },
     "telemetry": {
         "enabled": False,
