@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import subprocess
 from pathlib import Path
 
 from .config import load_resolved_config
@@ -149,6 +150,24 @@ def _check_git(project_path: Path) -> dict:
             "hint": "Initialize git or clone with history for branch-aware output.",
         }
 
+    # Detect shallow clones (common in CI with default checkout depth).
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(project_path), "rev-parse", "--is-shallow-repository"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        if result.returncode == 0 and result.stdout.strip() == "true":
+            return {
+                "id": "git_context",
+                "status": "warn",
+                "message": "Shallow clone detected; branch-aware features may be limited.",
+                "hint": "Clone with full history (fetch-depth: 0) for branch-aware output.",
+            }
+    except Exception:
+        pass
+
     base = detect_base_branch(project_path)
     if not base:
         return {
@@ -207,7 +226,7 @@ def _check_studio_assets() -> dict:
     if missing:
         return {
             "id": "studio_assets",
-            "status": "fail",
+            "status": "warn",
             "message": "Studio assets are incomplete.",
             "hint": ", ".join(missing),
         }
