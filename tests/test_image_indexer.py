@@ -31,7 +31,7 @@ def test_indexer_discovers_images_and_markdown_refs(tmp_path):
 
     assert indexed["summary"]["count"] == 1
     media = indexed["media_catalog"][0]
-    assert media["source_path"] == "assets/demo-screen.png"
+    assert media["source_path"].replace("\\", "/") == "assets/demo-screen.png"
     assert media["kind"] == "doc_image"
     assert media["mime"] == "image/png"
     assert media["width"] == 1
