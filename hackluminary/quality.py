@@ -168,10 +168,16 @@ def evaluate_quality(
             f"Image coverage {image_coverage:.2f} is below target 0.70 for non-title slides."
         )
 
-    if image_mode_normalized == "strict" and visual_eligible_slides and image_coverage < 0.50:
-        errors.append(
-            f"Image coverage {image_coverage:.2f} is below strict threshold 0.50 for non-title slides."
-        )
+    if image_mode_normalized == "strict" and visual_eligible_slides:
+        if image_coverage == 0:
+            errors.append(
+                f"Image coverage {image_coverage:.2f} is below strict threshold 0.50 for non-title slides. "
+                f"In strict mode, at least 50% of content slides must have images."
+            )
+        elif image_coverage < 0.50:
+            errors.append(
+                f"Image coverage {image_coverage:.2f} is below strict threshold 0.50 for non-title slides."
+            )
 
     visual_confidence_mean = 0.0
     if visual_confidences:

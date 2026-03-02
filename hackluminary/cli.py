@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sys
 import time
@@ -374,12 +375,14 @@ def generate_command(
 
     # The llama.cpp background thread may have invalidated the Win32 console
     # handle.  Re-initialise colorama so click.echo works again.
-    try:
-        import colorama as _colorama
-        _colorama.deinit()
-        _colorama.init(wrap=True, strip=False)
-    except Exception:
-        pass
+    # Skip this in testing environments where Click's CliRunner manages stdout/stderr
+    if not os.environ.get("PYTEST_CURRENT_TEST"):
+        try:
+            import colorama as _colorama
+            _colorama.deinit()
+            _colorama.init(wrap=True, strip=False)
+        except Exception:
+            pass
 
     payload = result["payload"]
     resolved_fmt = result["config"]["general"]["format"]

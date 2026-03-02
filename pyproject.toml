@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hackluminary"
-version = "2.2.0"
+version = "2.2.1"
 description = "Offline-first, branch-aware hackathon presentation generator"
 readme = "README.md"
 requires-python = ">=3.10"

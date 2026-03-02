@@ -146,7 +146,11 @@ def run_generation(
     # images, then merge them into media_catalog before AI enhancement so the
     # quality evaluator and visual selector can see them.
     remote_image_cfg = config.get("images", {}).get("remote", {})
-    remote_fetch_enabled = bool(remote_image_cfg.get("enabled", True)) and image_mode != "off"
+    remote_fetch_enabled = (
+        bool(remote_image_cfg.get("enabled", True))
+        and image_mode != "off"
+        and image_mode != "strict"  # Strict mode uses only local images
+    )
     if remote_fetch_enabled:
         try:
             remote_entries = fetch_images_for_slides(
