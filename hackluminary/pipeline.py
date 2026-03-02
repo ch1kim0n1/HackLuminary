@@ -147,6 +147,7 @@ def run_generation(
         metadata=metadata,
         theme=config["general"].get("theme", "default"),
         project_root=project_path,
+        evidence=evidence,
     )
 
     fmt = config["general"].get("format", "both")

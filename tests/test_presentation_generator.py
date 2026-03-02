@@ -72,3 +72,37 @@ def test_themes_change_rendered_css_variables():
     dark_html = PresentationGenerator(slides, metadata={"project": "Demo"}, theme="dark").generate_html()
 
     assert default_html != dark_html
+
+
+def test_empty_deck_renders_empty_state():
+    generator = PresentationGenerator([], metadata={"project": "Empty"}, theme="default")
+    html = generator.generate_html()
+
+    assert "No slides" in html
+    assert "no slides yet" in html.lower()
+    # Empty deck has no claim buttons in the content (only CSS defines .claim-chip)
+    assert "data-evidence=" not in html
+
+
+def test_no_alert_in_exported_deck():
+    generator = PresentationGenerator(_sample_slides(), metadata={"project": "Demo"}, theme="default")
+    html = generator.generate_html()
+
+    # Must not use alert() for evidence (content may contain escaped "alert" from user input)
+    assert "alert('Evidence" not in html
+    assert "alert(\"Evidence" not in html
+    assert "evidence-panel" in html
+    assert "evidenceData" in html
+
+
+def test_evidence_passed_to_generator():
+    evidence = [
+        {"id": "doc.title", "title": "Doc Title", "snippet": "Project description", "source_path": "README.md"},
+    ]
+    generator = PresentationGenerator(
+        _sample_slides(), metadata={"project": "Demo"}, theme="default", evidence=evidence
+    )
+    html = generator.generate_html()
+
+    assert '"doc.title"' in html
+    assert "Project description" in html

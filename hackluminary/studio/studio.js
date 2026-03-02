@@ -57,6 +57,38 @@
     node.dataset.type = type;
   }
 
+  function setLoading(loading) {
+    document.body.dataset.loading = loading ? "true" : "";
+    const node = els.messageStatus();
+    if (node) node.textContent = loading ? "Loading…" : (node.textContent || "");
+  }
+
+  function showError(message, retryFn) {
+    const statusbar = document.querySelector(".statusbar");
+    if (!statusbar) return;
+    let errEl = document.getElementById("studioErrorBanner");
+    if (!errEl) {
+      errEl = document.createElement("div");
+      errEl.id = "studioErrorBanner";
+      errEl.className = "error-banner";
+      errEl.setAttribute("role", "alert");
+      statusbar.insertAdjacentElement("beforebegin", errEl);
+    }
+    errEl.innerHTML = `<span>${escapeHtml(message)}</span>${retryFn ? `<button type="button" data-action="retry">Retry</button>` : ""}`;
+    errEl.hidden = false;
+    if (retryFn) {
+      errEl.querySelector("[data-action='retry']")?.addEventListener("click", () => {
+        errEl.hidden = true;
+        retryFn();
+      });
+    }
+  }
+
+  function hideError() {
+    const errEl = document.getElementById("studioErrorBanner");
+    if (errEl) errEl.hidden = true;
+  }
+
   function currentSlideIndex() {
     if (!state.selectedSlideId) return 0;
     const idx = state.slides.findIndex((slide) => slide.id === state.selectedSlideId);
@@ -315,7 +347,8 @@
     renderMedia();
     if (focusCard) {
       const section = document.querySelector(`.slide-card[data-slide-id="${CSS.escape(slideId)}"]`);
-      section?.scrollIntoView({ behavior: "smooth", block: "center" });
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      section?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "center" });
     }
 
     const idx = currentSlideIndex();
@@ -834,23 +867,65 @@
     });
     els.autoFixVisualsBtn()?.addEventListener("click", autoFixVisuals);
 
+    let overlayPrevFocus = null;
+    function trapOverlayFocus(overlay) {
+      if (!overlay || overlay.hidden) return;
+      overlayPrevFocus = document.activeElement;
+      const focusable = overlay.querySelectorAll('button, [href], input, [tabindex]:not([tabindex="-1"])');
+      const first = focusable[0];
+      if (first) first.focus();
+      overlay._overlayKeyHandler = (e) => {
+        if (e.key === "Tab") {
+          const f = overlay.querySelectorAll('button, [href], input, [tabindex]:not([tabindex="-1"])');
+          if (e.shiftKey && document.activeElement === f[0]) {
+            e.preventDefault();
+            f[f.length - 1]?.focus();
+          } else if (!e.shiftKey && document.activeElement === f[f.length - 1]) {
+            e.preventDefault();
+            f[0]?.focus();
+          }
+        }
+        if (e.key === "Escape") {
+          overlay.hidden = true;
+          if (overlayPrevFocus?.focus) overlayPrevFocus.focus();
+          overlay.removeEventListener("keydown", overlay._overlayKeyHandler);
+        }
+      };
+      overlay.addEventListener("keydown", overlay._overlayKeyHandler);
+    }
+    function releaseOverlayFocus(overlay) {
+      if (overlay?._overlayKeyHandler) {
+        overlay.removeEventListener("keydown", overlay._overlayKeyHandler);
+        overlay._overlayKeyHandler = null;
+      }
+      if (overlayPrevFocus?.focus) overlayPrevFocus.focus();
+      overlayPrevFocus = null;
+    }
     document.getElementById("exportBtn")?.addEventListener("click", () => {
       const overlay = els.overlay();
-      if (overlay) overlay.hidden = false;
+      if (overlay) {
+        overlay.hidden = false;
+        overlay.setAttribute("aria-modal", "true");
+        trapOverlayFocus(overlay);
+      }
     });
-
     document.querySelectorAll("[data-export]").forEach((button) => {
       button.addEventListener("click", async () => {
         const format = button.getAttribute("data-export") || "html";
         await exportSlides(format);
         const overlay = els.overlay();
-        if (overlay) overlay.hidden = true;
+        if (overlay) {
+          overlay.hidden = true;
+          releaseOverlayFocus(overlay);
+        }
       });
     });
-
     document.getElementById("closeOverlayBtn")?.addEventListener("click", () => {
       const overlay = els.overlay();
-      if (overlay) overlay.hidden = true;
+      if (overlay) {
+        overlay.hidden = true;
+        releaseOverlayFocus(overlay);
+      }
     });
 
     document.addEventListener("keydown", (event) => {
@@ -918,42 +993,51 @@
   }
 
   async function loadAll() {
-    const [context, slides, evidence, media, session] = await Promise.all([
-      request("/api/context"),
-      request("/api/slides"),
-      request("/api/evidence"),
-      request("/api/media"),
-      request("/api/session"),
-    ]);
+    setLoading(true);
+    hideError();
+    try {
+      const [context, slides, evidence, media, session] = await Promise.all([
+        request("/api/context"),
+        request("/api/slides"),
+        request("/api/evidence"),
+        request("/api/media"),
+        request("/api/session"),
+      ]);
 
-    state.context = context;
-    state.slides = slides.slides || [];
-    state.evidence = evidence.evidence || [];
-    state.media = media.media_catalog || [];
-    state.session = session.session || {};
-    state.readOnly = Boolean(context.read_only);
-    state.selectedSlideId = state.slides[0]?.id || null;
+      state.context = context;
+      state.slides = slides.slides || [];
+      state.evidence = evidence.evidence || [];
+      state.media = media.media_catalog || [];
+      state.session = session.session || {};
+      state.readOnly = Boolean(context.read_only);
+      state.selectedSlideId = state.slides[0]?.id || null;
 
-    renderContext();
-    renderOutline();
-    renderEvidence();
-    renderMedia();
-    renderSlides();
-    applyReadOnlyMode();
-    applyPaneWeights();
+      renderContext();
+      renderOutline();
+      renderEvidence();
+      renderMedia();
+      renderSlides();
+      applyReadOnlyMode();
+      applyPaneWeights();
 
-    const presenter = state.session?.presenter || {};
-    const selectedIndex = Number(presenter.last_slide_index || 0);
-    if (selectedIndex > 0 && selectedIndex < state.slides.length) {
-      state.selectedSlideId = state.slides[selectedIndex].id;
+      const presenter = state.session?.presenter || {};
+      const selectedIndex = Number(presenter.last_slide_index || 0);
+      if (selectedIndex > 0 && selectedIndex < state.slides.length) {
+        state.selectedSlideId = state.slides[selectedIndex].id;
+      }
+      const timerMin = Number(presenter.timer_minutes || state.context?.config?.ui?.presenter_timer_default_min || 7);
+      window.HackLuminaryPresenter?.setTargetMinutes(timerMin);
+
+      const defaultMode = String(state.context?.config?.studio?.default_view || "notebook");
+      setMode(defaultMode, false);
+      selectSlide(state.selectedSlideId || state.slides[0]?.id || "", false);
+      beginAutosave();
+      setMessage("Studio ready", "ok");
+    } catch (error) {
+      showError(`Failed to load: ${error.message}`, loadAll);
+    } finally {
+      setLoading(false);
     }
-    const timerMin = Number(presenter.timer_minutes || state.context?.config?.ui?.presenter_timer_default_min || 7);
-    window.HackLuminaryPresenter?.setTargetMinutes(timerMin);
-
-    const defaultMode = String(state.context?.config?.studio?.default_view || "notebook");
-    setMode(defaultMode, false);
-    selectSlide(state.selectedSlideId || state.slides[0]?.id || "", false);
-    beginAutosave();
   }
 
   function escapeHtml(value) {
@@ -971,12 +1055,6 @@
 
   document.addEventListener("DOMContentLoaded", async () => {
     bindUI();
-    try {
-      await loadAll();
-      setMessage("Studio ready", "ok");
-    } catch (error) {
-      setMessage(`Failed to initialize studio: ${error.message}`, "error");
-      console.error(error);
-    }
+    await loadAll();
   });
 })();

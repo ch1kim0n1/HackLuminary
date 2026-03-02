@@ -264,6 +264,7 @@ class StudioState:
                 metadata=self.context.metadata,
                 theme=self.context.config.get("general", {}).get("theme", "default"),
                 project_root=self.project_path,
+                evidence=self.context.evidence,
             )
 
             outputs = {}
@@ -456,12 +457,23 @@ class StudioHTTPHandler(BaseHTTPRequestHandler):
             raise HackLuminaryError(ErrorCode.INVALID_INPUT, "Request body must be a JSON object.")
         return payload
 
+    def _send_cors_if_local(self) -> None:
+        origin = self.headers.get("Origin", "")
+        if origin:
+            try:
+                parsed = urlparse(origin)
+                host = (parsed.hostname or "").lower()
+                if host in ("127.0.0.1", "localhost", "::1"):
+                    self.send_header("Access-Control-Allow-Origin", origin)
+            except Exception:
+                pass
+
     def _json_ok(self, payload: dict) -> None:
         body = json.dumps({"ok": True, "data": payload}).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
-        self.send_header("Access-Control-Allow-Origin", "http://127.0.0.1")
+        self._send_cors_if_local()
         self.end_headers()
         self.wfile.write(body)
 
@@ -474,6 +486,7 @@ class StudioHTTPHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
+        self._send_cors_if_local()
         self.end_headers()
         self.wfile.write(raw)
 

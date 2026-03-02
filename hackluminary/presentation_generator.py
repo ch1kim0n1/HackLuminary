@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import html
+import json
 import mimetypes
 from pathlib import Path
 
@@ -17,24 +18,26 @@ class PresentationGenerator:
             "panel": "#11172b",
             "panel_alt": "#0f1526",
             "text": "#eef2ff",
-            "muted": "#a8b2d1",
+            "muted": "#c5cce8",  # WCAG AA contrast on --bg
             "accent": "#24d3b5",
             "accent2": "#4db2ff",
             "warning": "#f59e0b",
             "danger": "#ef4444",
             "ok": "#22c55e",
+            "overlay": "rgba(2, 6, 23, 0.84)",
         },
         "dark": {
             "bg": "#020617",
             "panel": "#0b1223",
             "panel_alt": "#0a1120",
             "text": "#f3f4f6",
-            "muted": "#9ca3af",
+            "muted": "#b8bfc9",
             "accent": "#38bdf8",
             "accent2": "#a78bfa",
             "warning": "#f59e0b",
             "danger": "#f87171",
             "ok": "#34d399",
+            "overlay": "rgba(2, 6, 23, 0.84)",
         },
         "minimal": {
             "bg": "#f4f7fb",
@@ -47,27 +50,37 @@ class PresentationGenerator:
             "warning": "#b45309",
             "danger": "#b91c1c",
             "ok": "#15803d",
+            "overlay": "rgba(15, 23, 42, 0.84)",
         },
         "colorful": {
             "bg": "#1b1028",
             "panel": "#24173a",
             "panel_alt": "#2f1c48",
             "text": "#faf5ff",
-            "muted": "#d8b4fe",
+            "muted": "#e9d5ff",
             "accent": "#f97316",
             "accent2": "#f43f5e",
             "warning": "#facc15",
             "danger": "#fb7185",
             "ok": "#4ade80",
+            "overlay": "rgba(27, 16, 40, 0.84)",
         },
     }
 
-    def __init__(self, slides: list[dict], metadata: dict, theme: str = "default", project_root: Path | None = None):
+    def __init__(
+        self,
+        slides: list[dict],
+        metadata: dict,
+        theme: str = "default",
+        project_root: Path | None = None,
+        evidence: list[dict] | None = None,
+    ):
         self.slides = slides
         self.metadata = metadata
         self.theme_name = theme
         self.theme = self._resolve_theme(theme)
         self.project_root = Path(project_root).resolve() if project_root else None
+        self.evidence = evidence or []
 
     def generate(self) -> str:
         return self.generate_html()
@@ -75,12 +88,21 @@ class PresentationGenerator:
     def generate_html(self) -> str:
         project_name = self._safe(self.metadata.get("project", "HackLuminary"))
         css_vars = self._theme_css_vars()
+        slide_count = len(self.slides)
         timeline = "".join(
             f"<button class='timeline-dot' data-goto='{index}' aria-label='Go to slide {index + 1}'></button>"
-            for index in range(len(self.slides))
+            for index in range(slide_count)
         )
 
-        sections = "\n".join(self._render_html_slide(index, slide) for index, slide in enumerate(self.slides, start=1))
+        evidence_map = self._build_evidence_map()
+        evidence_json = json.dumps(evidence_map).replace("</", "<\\/")
+
+        if slide_count == 0:
+            sections = "<section class='slide slide-content'><h2>No slides</h2><p class='subtitle'>This presentation has no slides yet.</p></section>"
+        else:
+            sections = "\n".join(
+                self._render_html_slide(index, slide) for index, slide in enumerate(self.slides, start=1)
+            )
 
         return f"""<!DOCTYPE html>
 <html lang=\"en\">
@@ -95,12 +117,17 @@ class PresentationGenerator:
 body {{
   margin: 0;
   font-family: "Avenir Next", "Segoe UI", "SF Pro Text", system-ui, sans-serif;
-  background:
-    radial-gradient(circle at 20% 10%, color-mix(in srgb, var(--accent2) 20%, transparent), transparent 45%),
-    radial-gradient(circle at 80% 90%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 50%),
-    var(--bg);
+  background: var(--bg);
   color: var(--text);
   min-height: 100vh;
+}}
+@supports (color: color-mix(in srgb, red, blue)) {{
+  body {{
+    background:
+      radial-gradient(circle at 20% 10%, color-mix(in srgb, var(--accent2) 20%, transparent), transparent 45%),
+      radial-gradient(circle at 80% 90%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 50%),
+      var(--bg);
+  }}
 }}
 .skip-link {{
   position: absolute;
@@ -186,7 +213,7 @@ body {{
 .image-modal {{
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 23, 0.84);
+  background: var(--overlay);
   display: none;
   align-items: center;
   justify-content: center;
@@ -221,7 +248,8 @@ body {{
   background: color-mix(in srgb, var(--panel_alt) 88%, var(--accent) 12%);
   color: var(--text);
   border-radius: 999px;
-  padding: 6px 10px;
+  padding: 10px 16px;
+  min-height: 44px;
   font-size: 0.82rem;
   cursor: pointer;
 }}
@@ -268,18 +296,21 @@ body.presenter-mode .speaker-notes {{ display: block; }}
   background: color-mix(in srgb, var(--panel) 84%, var(--accent) 16%);
   color: var(--text);
   border-radius: 9px;
-  padding: 7px 11px;
+  padding: 12px 18px;
+  min-height: 44px;
+  min-width: 44px;
   cursor: pointer;
 }}
-.timeline {{ display: flex; gap: 4px; margin-left: 8px; }}
+.timeline {{ display: flex; gap: 6px; margin-left: 8px; align-items: center; }}
 .timeline-dot {{
-  width: 13px;
-  height: 13px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: 1px solid color-mix(in srgb, var(--accent2) 52%, transparent);
   background: transparent;
   padding: 0;
   cursor: pointer;
+  flex-shrink: 0;
 }}
 .timeline-dot.active {{ background: var(--accent2); }}
 .presenter-hud {{
@@ -308,7 +339,7 @@ body.presenter-mode .presenter-hud {{ display: block; }}
 .command-palette {{
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 23, 0.62);
+  background: var(--overlay);
   display: none;
   align-items: center;
   justify-content: center;
@@ -331,6 +362,48 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
 @media (prefers-reduced-motion: reduce) {{
   * {{ scroll-behavior: auto !important; transition: none !important; animation: none !important; }}
 }}
+@media print {{
+  .toolbar, .presenter-hud, .command-palette, .image-modal, .skip-link, .evidence-panel-overlay {{
+    display: none !important;
+  }}
+  body {{ background: var(--bg); }}
+  .slide {{ box-shadow: none; break-inside: avoid; }}
+}}
+.evidence-panel-overlay {{
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 95;
+  padding: 24px;
+}}
+.evidence-panel-overlay.visible {{ display: flex; }}
+.evidence-panel {{
+  max-width: min(560px, 92vw);
+  max-height: 80vh;
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--accent2) 35%, transparent);
+  border-radius: 14px;
+  padding: 20px;
+}}
+.evidence-panel h3 {{ margin: 0 0 12px; font-size: 1rem; }}
+.evidence-panel-item {{
+  margin: 12px 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel_alt) 92%, black 8%);
+  border: 1px solid color-mix(in srgb, var(--accent2) 22%, transparent);
+}}
+.evidence-panel-item .id {{ font-weight: 600; color: var(--accent2); }}
+.evidence-panel-item .snippet {{ font-size: 0.88rem; white-space: pre-wrap; margin-top: 6px; }}
+.visual-thumb img[data-error="true"] {{
+  min-height: 80px;
+  background: color-mix(in srgb, var(--panel_alt) 90%, black 10%);
+  object-fit: none;
+}}
 </style>
 </head>
 <body>
@@ -341,18 +414,18 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
   <div class="hud-main" id="hudCurrent">Current: -</div>
   <div class="hud-next" id="hudNext">Next: -</div>
   <div class="hud-row">
-    <span class="timer" id="hudTimer">00:00</span>
+    <span class="timer" id="hudTimer" aria-live="assertive" aria-atomic="true">00:00</span>
     <button class="control-btn" id="timerStart">Start</button>
     <button class="control-btn" id="timerPause">Pause</button>
     <button class="control-btn" id="timerReset">Reset</button>
   </div>
   <div class="hud-row">
     <label for="jumpInput">Jump</label>
-    <input id="jumpInput" type="number" min="1" max="{len(self.slides)}" style="width:70px;" />
+    <input id="jumpInput" type="number" min="1" max="{max(1, slide_count)}" style="width:70px;" />
     <button class="control-btn" id="jumpBtn">Go</button>
   </div>
 </aside>
-<div class="command-palette" id="palette" aria-hidden="true">
+<div class="command-palette" id="palette" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
   <div class="command-body">
     <h3>Keyboard Shortcuts</h3>
     <p><code>→/↓/Space</code> next, <code>←/↑</code> previous, <code>Home/End</code> first/last</p>
@@ -369,7 +442,7 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
   <button class="control-btn" id="togglePalette">Shortcuts</button>
   <div class="timeline" id="timeline">{timeline}</div>
 </div>
-<div class="image-modal" id="imageModal" aria-hidden="true" role="dialog" aria-label="Image preview">
+<div class="image-modal" id="imageModal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Image preview">
   <div class="image-modal-card">
     <img id="imageModalImg" alt="" />
     <div class="image-modal-caption" id="imageModalCaption"></div>
@@ -378,6 +451,14 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
     </div>
   </div>
 </div>
+<div class="evidence-panel-overlay" id="evidencePanel" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="evidencePanelTitle" aria-label="Evidence references">
+  <div class="evidence-panel">
+    <h3 id="evidencePanelTitle">Evidence</h3>
+    <div id="evidencePanelContent"></div>
+    <button class="control-btn" id="closeEvidencePanel" style="margin-top:12px;">Close</button>
+  </div>
+</div>
+<script type="application/json" id="evidenceData">{evidence_json}</script>
 <script>
 (() => {{
   const slides = Array.from(document.querySelectorAll('.slide'));
@@ -434,10 +515,11 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
     }});
   }}
 
+  const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function go(idx) {{
     if (!slides.length) return;
     current = Math.max(0, Math.min(idx, slides.length - 1));
-    slides[current].scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+    slides[current].scrollIntoView({{ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' }});
     refreshHUD();
   }}
 
@@ -446,19 +528,43 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
     refreshHUD();
   }}
 
+  let palettePrevFocus = null;
   function togglePalette(show) {{
     const visible = typeof show === 'boolean' ? show : !palette.classList.contains('visible');
     palette.classList.toggle('visible', visible);
     palette.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    if (visible) {{
+      palettePrevFocus = document.activeElement;
+      const firstFocus = palette.querySelector('button, [href], input');
+      if (firstFocus) firstFocus.focus();
+      palette._keyHandler = (e) => {{
+        if (e.key === 'Tab') {{
+          const focusable = palette.querySelectorAll('button, [href], input');
+          const first = focusable[0], last = focusable[focusable.length - 1];
+          if (e.shiftKey && document.activeElement === first) {{ e.preventDefault(); last?.focus(); }}
+          else if (!e.shiftKey && document.activeElement === last) {{ e.preventDefault(); first?.focus(); }}
+        }}
+      }};
+      palette.addEventListener('keydown', palette._keyHandler);
+    }} else {{
+      if (palette._keyHandler) {{ palette.removeEventListener('keydown', palette._keyHandler); palette._keyHandler = null; }}
+      if (palettePrevFocus && palettePrevFocus.focus) palettePrevFocus.focus();
+      palettePrevFocus = null;
+    }}
   }}
 
+  let imageModalPrevFocus = null;
   function openImageModal(src, alt, caption) {{
     if (!imageModal || !imageModalImg || !imageModalCaption) return;
+    imageModalPrevFocus = document.activeElement;
     imageModalImg.src = src || '';
     imageModalImg.alt = alt || '';
+    imageModalImg.removeAttribute('data-error');
     imageModalCaption.textContent = caption || alt || '';
     imageModal.classList.add('visible');
     imageModal.setAttribute('aria-hidden', 'false');
+    const closeBtn = document.getElementById('closeImageModal');
+    if (closeBtn) {{ closeBtn.focus(); trapFocus(imageModal); }}
   }}
 
   function closeImageModal() {{
@@ -466,19 +572,105 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
     imageModal.classList.remove('visible');
     imageModal.setAttribute('aria-hidden', 'true');
     imageModalImg.src = '';
+    if (imageModal._keyHandler) {{
+      imageModal.removeEventListener('keydown', imageModal._keyHandler);
+      imageModal._keyHandler = null;
+    }}
+    if (imageModalPrevFocus && imageModalPrevFocus.focus) imageModalPrevFocus.focus();
+    imageModalPrevFocus = null;
+  }}
+
+  imageModalImg?.addEventListener('error', () => {{
+    if (imageModalImg) imageModalImg.setAttribute('data-error', 'true');
+    imageModalCaption.textContent = 'Image failed to load';
+  }});
+
+  function getEvidenceData() {{
+    try {{
+      const el = document.getElementById('evidenceData');
+      return el ? JSON.parse(el.textContent || '{{}}') : {{}};
+    }} catch {{ return {{}}; }}
+  }}
+
+  function openEvidencePanel(ids) {{
+    const panel = document.getElementById('evidencePanel');
+    const content = document.getElementById('evidencePanelContent');
+    if (!panel || !content) return;
+    const idList = String(ids || '').split(',').map(s => s.trim()).filter(Boolean);
+    const data = getEvidenceData();
+    let html = '';
+    idList.forEach(id => {{
+      const ev = data[id] || {{}};
+      html += '<div class="evidence-panel-item"><span class="id">' + escapeHtml(id) + '</span>';
+      if (ev.source_path) html += '<div class="muted">' + escapeHtml(ev.source_path) + '</div>';
+      if (ev.snippet) html += '<pre class="snippet">' + escapeHtml(ev.snippet) + '</pre>';
+      if (!ev.snippet && !ev.source_path) html += '<span class="muted">No details</span>';
+      html += '</div>';
+    }});
+    content.innerHTML = html || '<p class="muted">No evidence details</p>';
+    panel.classList.add('visible');
+    panel.setAttribute('aria-hidden', 'false');
+    const closeBtn = document.getElementById('closeEvidencePanel');
+    if (closeBtn) {{ closeBtn.focus(); trapFocus(panel); }}
+  }}
+
+  function closeEvidencePanel() {{
+    const panel = document.getElementById('evidencePanel');
+    if (!panel) return;
+    panel.classList.remove('visible');
+    panel.setAttribute('aria-hidden', 'true');
+    releaseFocus();
+  }}
+
+  function escapeHtml(s) {{
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+  }}
+
+  let focusTrapPrev = null;
+  function trapFocus(container) {{
+    focusTrapPrev = document.activeElement;
+    const focusable = container.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (first) first.focus();
+    container._keyHandler = (e) => {{
+      if (e.key !== 'Tab') return;
+      if (e.shiftKey) {{ if (document.activeElement === first) {{ e.preventDefault(); last?.focus(); }} }}
+      else {{ if (document.activeElement === last) {{ e.preventDefault(); first?.focus(); }} }}
+    }};
+    container.addEventListener('keydown', container._keyHandler);
+  }}
+
+  function releaseFocus() {{
+    const panel = document.getElementById('evidencePanel');
+    if (panel && panel._keyHandler) {{
+      panel.removeEventListener('keydown', panel._keyHandler);
+      panel._keyHandler = null;
+    }}
+    if (focusTrapPrev && focusTrapPrev.focus) focusTrapPrev.focus();
+    focusTrapPrev = null;
   }}
 
   function onClaimClick(event) {{
     const ids = event.currentTarget.getAttribute('data-evidence') || '';
     if (!ids) return;
-    alert('Evidence refs: ' + ids); // local inline UX fallback for exported deck
+    openEvidencePanel(ids);
   }}
 
   document.querySelectorAll('.claim-chip').forEach((chip) => chip.addEventListener('click', onClaimClick));
+  document.getElementById('closeEvidencePanel')?.addEventListener('click', closeEvidencePanel);
+  document.getElementById('evidencePanel')?.addEventListener('click', (e) => {{ if (e.target.id === 'evidencePanel') closeEvidencePanel(); }});
 
   document.addEventListener('keydown', (event) => {{
     if (event.key === '?' ) {{ event.preventDefault(); togglePalette(); return; }}
-    if (event.key === 'Escape') {{ togglePalette(false); closeImageModal(); return; }}
+    if (event.key === 'Escape') {{
+      if (document.getElementById('evidencePanel')?.classList.contains('visible')) {{ closeEvidencePanel(); return; }}
+      if (imageModal?.classList.contains('visible')) {{ closeImageModal(); return; }}
+      togglePalette(false);
+      return;
+    }}
     if (event.key.toLowerCase() === 'p') {{ event.preventDefault(); togglePresenter(); return; }}
     if (event.key.toLowerCase() === 'j') {{ event.preventDefault(); jumpInput?.focus(); return; }}
 
@@ -525,7 +717,16 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
   document.getElementById('timerPause')?.addEventListener('click', pauseTimer);
   document.getElementById('timerReset')?.addEventListener('click', resetTimer);
   document.getElementById('jumpBtn')?.addEventListener('click', () => {{
-    const target = Number(jumpInput.value || '1');
+    const raw = jumpInput?.value || '1';
+    const target = Math.floor(Number(raw));
+    const maxSlide = Math.max(1, slides.length);
+    if (!Number.isFinite(target) || target < 1 || target > maxSlide) {{
+      jumpInput.value = String(current + 1);
+      jumpInput.setCustomValidity('Enter 1 to ' + maxSlide);
+      jumpInput.reportValidity?.();
+      return;
+    }}
+    jumpInput.setCustomValidity?.('');
     go(target - 1);
   }});
 
@@ -674,8 +875,14 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
             meta += f" · {len(refs)} evidence reference(s)"
         meta += "</div>"
 
+        title_id = f"slide-title-{index}"
+        if slide_type in {"title", "closing"}:
+            body = body.replace("<h1>", f"<h1 id='{title_id}'>", 1)
+        else:
+            body = body.replace("<h2>", f"<h2 id='{title_id}'>", 1)
         return (
-            f"<section class='slide slide-{self._safe(slide_type)}' id='slide-{index}' data-index='{index}'>"
+            f"<section class='slide slide-{self._safe(slide_type)}' id='slide-{index}' data-index='{index}' "
+            f"aria-labelledby='{title_id}' role='region'>"
             f"{body}{claims_html}{evidence_html}{notes_html}{meta}</section>"
         )
 
@@ -700,7 +907,8 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
             blocks.append(
                 "<figure class='visual-item'>"
                 f"<button class='visual-thumb' type='button' data-modal-src='{modal_src}' data-modal-alt='{alt}' data-modal-caption='{caption}'>"
-                f"<img src='{modal_src}' alt='{alt}' loading='lazy' decoding='async' />"
+                f"<img src='{modal_src}' alt='{alt}' loading='lazy' decoding='async' "
+                "onerror=\"this.setAttribute('data-error','true');this.alt='Image failed to load';\" />"
                 "</button>"
                 f"{caption_html}"
                 "</figure>"
@@ -746,6 +954,22 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
 
     def _theme_css_vars(self) -> str:
         return "; ".join(f"--{key}: {value}" for key, value in self.theme.items())
+
+    def _build_evidence_map(self) -> dict[str, dict]:
+        """Build id -> {title, snippet, source_path} for in-page evidence panel."""
+        out: dict[str, dict] = {}
+        for item in self.evidence:
+            if not isinstance(item, dict):
+                continue
+            eid = str(item.get("id", "")).strip()
+            if not eid:
+                continue
+            out[eid] = {
+                "title": str(item.get("title", eid))[:200],
+                "snippet": str(item.get("snippet", ""))[:500],
+                "source_path": str(item.get("source_path", ""))[:200],
+            }
+        return out
 
     def _safe(self, value: object) -> str:
         return html.escape(str(value), quote=True)

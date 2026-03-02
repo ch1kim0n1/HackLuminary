@@ -425,6 +425,28 @@ body.motion-none * {
   z-index: 60;
 }
 
+.error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: color-mix(in srgb, var(--danger) 18%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  border-radius: var(--radius);
+  margin: var(--space-2) var(--space-4);
+  font-size: 0.9rem;
+}
+
+.error-banner[hidden] {
+  display: none;
+}
+
+body[data-loading="true"] .workspace {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
 .overlay-card {
   width: min(440px, 92vw);
   background: var(--panel);
