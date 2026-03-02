@@ -5,10 +5,18 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .pipeline import run_generation
-from .studio_server import run_studio_server
-
 __version__ = "2.2.0"
+__all__ = ["generate_presentation", "launch_studio", "__version__"]
+
+
+def _pipeline():
+    from .pipeline import run_generation  # noqa: PLC0415  (lazy — keep CLI fast)
+    return run_generation
+
+
+def _studio():
+    from .studio_server import run_studio_server  # noqa: PLC0415
+    return run_studio_server
 
 
 def generate_presentation(
@@ -53,6 +61,7 @@ def generate_presentation(
         },
     }
 
+    run_generation = _pipeline()
     result = run_generation(
         project_dir=project_dir,
         additional_docs=list(docs or []),
@@ -103,6 +112,7 @@ def launch_studio(project_dir, base_branch=None, theme=None, port=0, read_only=F
             "port": port,
         },
     }
+    run_studio_server = _studio()
     run_studio_server(
         project_path=project_dir,
         cli_overrides=overrides,

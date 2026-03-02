@@ -8,9 +8,38 @@ version = "2.2.0"
 description = "Offline-first, branch-aware hackathon presentation generator"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
+license = {file = "LICENSE"}
 authors = [
   {name = "MindCore"}
+]
+keywords = [
+  "hackathon",
+  "presentation",
+  "slides",
+  "generator",
+  "offline",
+  "git",
+  "branch-aware",
+  "markdown",
+  "html",
+  "ai",
+  "llm",
+  "studio",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Documentation",
+  "Topic :: Text Processing :: Markup :: HTML",
+  "Topic :: Utilities",
 ]
 dependencies = [
   "click>=8.1,<9",
@@ -30,6 +59,11 @@ release = [
   "build>=1.2",
   "pyinstaller>=6.10",
 ]
+
+[project.urls]
+Homepage = "https://github.com/ch1kim0n1/HackLuminary"
+Repository = "https://github.com/ch1kim0n1/HackLuminary"
+"Bug Tracker" = "https://github.com/ch1kim0n1/HackLuminary/issues"
 
 [project.scripts]
 hackluminary = "hackluminary.cli:main"
