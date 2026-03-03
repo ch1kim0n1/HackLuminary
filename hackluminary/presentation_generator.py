@@ -174,15 +174,15 @@ body {{
     0 0 0 1px color-mix(in srgb, var(--accent2) 40%, transparent),
     0 32px 80px rgba(2, 6, 23, 0.60);
 }}
-.slide.slide-title .title-hero {
+.slide.slide-title .title-hero {{
   max-width: 820px;
   padding: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 24px;
-}
-.slide.slide-title .title-logo {
+}}
+.slide.slide-title .title-logo {{
     max-width: 120px;
     max-height: 120px;
 }}
@@ -1157,7 +1157,7 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
             raw = logo_path.read_bytes()
             encoded = base64.b64encode(raw).decode("ascii")
             mime = mimetypes.guess_type(str(logo_path))[0] or "application/octet-stream"
-            return f\"<img src='data:{mime};base64,{encoded}' alt='Logo' class='title-logo' />\"
+            return f"<img src='data:{mime};base64,{encoded}' alt='Logo' class='title-logo' />"
         except Exception:
             return ""
 
