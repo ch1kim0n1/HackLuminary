@@ -74,6 +74,7 @@ class PresentationGenerator:
         theme: str = "default",
         project_root: Path | None = None,
         evidence: list[dict] | None = None,
+        config: dict | None = None,
     ):
         self.slides = slides
         self.metadata = metadata
@@ -81,6 +82,7 @@ class PresentationGenerator:
         self.theme = self._resolve_theme(theme)
         self.project_root = Path(project_root).resolve() if project_root else None
         self.evidence = evidence or []
+        self.config = config or {}
 
     def generate(self) -> str:
         return self.generate_html()
@@ -149,9 +151,11 @@ body {{
   border-radius: 22px;
   background: linear-gradient(165deg, var(--panel), var(--panel_alt));
   border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
-  padding: 44px 40px;
+  padding: 32px 32px;
   box-shadow: 0 20px 52px rgba(2, 6, 23, 0.36);
   position: relative;
+  display: flex;
+  flex-direction: column;
 }}
 .slide.slide-title {{
   min-height: 88vh;
@@ -170,10 +174,17 @@ body {{
     0 0 0 1px color-mix(in srgb, var(--accent2) 40%, transparent),
     0 32px 80px rgba(2, 6, 23, 0.60);
 }}
-.slide.slide-title .title-hero,
-.slide.slide-closing .title-hero {{
+.slide.slide-title .title-hero {
   max-width: 820px;
   padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+}
+.slide.slide-title .title-logo {
+    max-width: 120px;
+    max-height: 120px;
 }}
 .slide.slide-title h1 {{
   font-size: clamp(3rem, 7vw, 5.5rem);
@@ -210,6 +221,13 @@ body {{
 .content code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.88em;
   background: color-mix(in srgb, var(--accent2) 15%, transparent);
   padding: 2px 6px; border-radius: 5px; }}
+.content blockquote {{
+    border-left: 4px solid var(--accent);
+    margin: 16px 0;
+    padding: 8px 16px;
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    border-radius: 0 8px 8px 0;
+}}
 .slide-list {{ margin: 0; padding-left: 1.1rem; columns: 2 320px; column-gap: 1.8rem; }}
 .slide-list li {{
   break-inside: avoid;
@@ -274,11 +292,30 @@ body {{
   font-size: 0.85rem;
   user-select: none;
 }}
-.slide-layout {{
+.slide-body {{
+    flex: 1;
+}}
+.slide-layout-default {{
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
   gap: 18px;
   align-items: start;
+  height: 100%;
+}}
+.slide-layout-centered {{
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    height: 100%;
+}}
+.slide-layout-two-col {{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: start;
+    height: 100%;
 }}
 .slide-main {{ min-width: 0; }}
 .visual-panel {{
@@ -975,29 +1012,31 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
                 )
                 body = f"<div class='title-hero'><h1>{title}</h1><p class='subtitle'>{subtitle_rendered}</p>{stats_html}</div>"
             else:
-                body = f"<div class='title-hero'><h1>{title}</h1><p class='subtitle'>{subtitle_rendered}</p></div>"
-        elif slide_type in {"list", "tech", "delta", "demo", "impact", "future"}:
-            items = slide.get("list_items", [])
-            list_html = "".join(f"<li>{self._render_inline_md(str(item))}</li>" for item in items)
-            main = f"<h2>{title}</h2><ul class='slide-list'>{list_html}</ul>"
-            if visual_html:
-                body = f"<div class='slide-layout'><div class='slide-main'>{main}</div>{visual_html}</div>"
-            else:
-                body = main
-        elif slide_type in {"problem", "solution", "content"}:
-            rendered_content = self._render_md(slide.get("content", ""))
-            main = f"<h2>{title}</h2><div class='content'>{rendered_content}</div>"
-            if visual_html:
-                body = f"<div class='slide-layout'><div class='slide-main'>{main}</div>{visual_html}</div>"
-            else:
-                body = main
+                logo_html = self._render_logo()
+                body = f"<div class='title-hero'>{logo_html}<div><h1>{title}</h1><p class='subtitle'>{subtitle_rendered}</p></div></div>"
         else:
-            rendered_content = self._render_md(slide.get("content", ""))
-            main = f"<h2>{title}</h2><div class='content'>{rendered_content}</div>"
-            if visual_html:
-                body = f"<div class='slide-layout'><div class='slide-main'>{main}</div>{visual_html}</div>"
+            layout_class = 'slide-layout-default'
+            if not visual_html:
+                content_length = len(slide.get("content", "")) + len(slide.get("subtitle", ""))
+                if content_length < 200 and not slide.get("list_items"):
+                    layout_class = 'slide-layout-centered'
+                elif content_length > 400 and not slide.get("list_items"):
+                    layout_class = 'slide-layout-two-col'
+
+            if slide_type in {"list", "tech", "delta", "demo", "impact", "future"}:
+                items = slide.get("list_items", [])
+                list_html = "".join(f"<li>{self._render_inline_md(str(item))}</li>" for item in items)
+                main = f"<h2>{title}</h2><ul class='slide-list'>{list_html}</ul>"
             else:
-                body = main
+                rendered_content = self._render_md(slide.get("content", ""))
+                main = f"<h2>{title}</h2><div class='content'>{rendered_content}</div>"
+
+            if layout_class == 'slide-layout-default':
+                body = f"<div class='slide-body {layout_class}'><div class='slide-main'>{main}</div>{visual_html}</div>"
+            else:
+                body = f"<div class='slide-body {layout_class}'>{main}</div>"
+
+
 
         claims_html = f"<div class='claims'>{''.join(claim_chips)}</div>" if claim_chips else ""
         evidence_html = f"<div class='evidence-strip'>{evidence_badges}</div>" if evidence_badges else ""
@@ -1088,9 +1127,40 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
         return f"data:{mime};base64,{encoded}"
 
     def _resolve_theme(self, requested: str) -> dict:
+        if requested == "custom":
+            custom_theme = self.config.get("theme", {}).get("custom", {})
+            theme = self.THEMES["default"].copy()
+            for key, value in custom_theme.items():
+                if value:
+                    theme[key] = value
+            return theme
+
         if requested == "auto":
             requested = "default"
         return self.THEMES.get(requested, self.THEMES["default"])
+
+    def _render_logo(self) -> str:
+        logo_path = self.config.get("general", {}).get("logo")
+        if not logo_path:
+            return ""
+        
+        logo_path = Path(logo_path)
+        if not logo_path.is_absolute():
+            if not self.project_root:
+                return ""
+            logo_path = (self.project_root / logo_path).resolve()
+
+        if not logo_path.exists() or not logo_path.is_file():
+            return ""
+
+        try:
+            raw = logo_path.read_bytes()
+            encoded = base64.b64encode(raw).decode("ascii")
+            mime = mimetypes.guess_type(str(logo_path))[0] or "application/octet-stream"
+            return f\"<img src='data:{mime};base64,{encoded}' alt='Logo' class='title-logo' />\"
+        except Exception:
+            return ""
+
 
     def _theme_css_vars(self) -> str:
         return "; ".join(f"--{key}: {value}" for key, value in self.theme.items())
@@ -1135,6 +1205,12 @@ code {{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85em; }
         text = _re.sub(
             r"`(.+?)`",
             lambda m: f"<code>{html.escape(m.group(1))}</code>",
+            text,
+        )
+        # >>quote<<
+        text = _re.sub(
+            r">>(.+?)<<",
+            lambda m: f"<blockquote>{m.group(1)}</blockquote>",
             text,
         )
         return text

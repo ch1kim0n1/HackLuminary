@@ -202,12 +202,13 @@ def _build_overrides(
     base_branch: str | None,
     no_branch_context: bool,
     strict_quality: bool | None,
-    copy_output_dir: str | None,
-    auto_open: bool,
-    image_mode: str | None,
-    image_dirs: tuple[str, ...] | list[str],
-    max_images_per_slide: int | None,
-    visual_style: str | None,
+        copy_output_dir: str | None,
+        auto_open: bool,
+        image_mode: str | None,
+        image_dirs: tuple[str, ...] | list[str],
+        max_images_per_slide: int | None,
+        visual_style: str | None,
+        logo: str | None,
 ) -> dict:
     overrides = {
         "general": {
@@ -215,6 +216,7 @@ def _build_overrides(
             "theme": theme,
             "mode": mode,
             "strict_quality": strict_quality,
+            "logo": logo,
         },
         "git": {
             "base_branch": base_branch,
@@ -269,7 +271,7 @@ def cli() -> None:
 @click.option("--slides", type=str, default=None, help="Comma-separated slide ids.")
 @click.option("--max-slides", type=click.IntRange(min=1), default=None)
 @click.option("--docs", "docs", multiple=True, type=click.Path(), help="Additional docs within project.")
-@click.option("--theme", type=click.Choice(["default", "dark", "minimal", "colorful", "auto"]), default=None)
+@click.option("--theme", type=click.Choice(["default", "dark", "minimal", "colorful", "auto", "custom"]), default=None)
 @click.option("--mode", type=click.Choice(["deterministic", "ai", "hybrid"]), default=None)
 @click.option("--images", "images_mode", type=click.Choice(["off", "auto", "strict"]), default=None)
 @click.option("--image-dirs", "image_dirs", multiple=True, type=click.Path(), help="Project-relative directories to scan for images.")
@@ -281,6 +283,7 @@ def cli() -> None:
 @click.option("--no-strict-quality", "strict_quality", flag_value=False)
 @click.option("--open", "auto_open", is_flag=True, default=False)
 @click.option("--copy-output-dir", type=click.Path(), default=None)
+@click.option("--logo", type=click.Path(exists=True, dir_okay=False), default=None, help="Path to a logo file to include on the title slide.")
 @click.option("--bundle", is_flag=True, default=False, help="Write notes.md and talk-track.md next to output.")
 @click.option("--debug", is_flag=True, default=False)
 @click.option("--zero-shot", is_flag=True, default=False, help="Enable JSON-only generation mode.")
@@ -304,6 +307,7 @@ def generate_command(
     strict_quality: bool | None,
     auto_open: bool,
     copy_output_dir: str | None,
+    logo: str | None,
     bundle: bool,
     debug: bool,
     zero_shot: bool,
@@ -334,6 +338,7 @@ def generate_command(
         image_dirs=image_dirs,
         max_images_per_slide=max_images_per_slide,
         visual_style=visual_style,
+        logo=logo,
     )
 
     # Only send progress/warnings to stderr when format is json (printed to

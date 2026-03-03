@@ -32,3 +32,4 @@ ENV/
 output/
 *.html
 *.pdf
+fix-git-config-permissions.ps1

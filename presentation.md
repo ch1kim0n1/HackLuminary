@@ -6,12 +6,12 @@ paginate: true
 
 ---
 
-# DocGenie
+# HackLuminary v2.2
 
-Auto-documentation tool that generates `README.md` and HTML docs for a codebase.
+Offline-first, branch-aware presentation system with a NotebookLM-style local Studio and production deck renderer.
 
 Claims:
-- Auto-documentation tool that generates `README.md` and HTML docs for a codebase.
+- Offline-first, branch-aware presentation system with a NotebookLM-style local Studio and production deck renderer.
 
 Evidence: doc.title, doc.description
 
@@ -36,70 +36,43 @@ Evidence: doc.description, repo.project
 
 ## Our Solution
 
-DocGenie consists of several key components:
-
-- **CodebaseAnalyzer**: Multi-language code analysis engine with caching and concurrency
-- **ParserRegistry**: Pluggable parsers (AST, tree-sitter, regex fallback) per language
-- **ReadmeGenerator**: Jinja2-based template rendering system for markdown
-- **HTMLGenerator**: Beautiful HTML documentation generator with responsive design
-- **CLI Interface**: Typer + Rich powered user experience
+This workflow produces deterministic slides from repository facts and optional local AI refinement, keeping outputs reproducible while adapting narrative quality for Python projects.
 
 Visuals:
 ![Python programming language](C:\Users\Vladislav Kondratyev\.local\share\hackluminary\image_cache\da153dc6e7ded43a.png)
 _Python programming language_
 
 Claims:
-- DocGenie consists of several key components:
+- This workflow produces deterministic slides from repository facts and optional local AI refinement, keeping outputs reproducible while adapting narrative quality for Python projects.
 
-- **CodebaseAnalyzer**: Multi-language code analysis engine with caching and concurrency
-- **ParserRegistry**: Pluggable parsers (AST, tree-sitter, regex fallback) per language
-- **ReadmeGenerator**: Jinja2-based template rendering system for markdown
-- **HTMLGenerator**: Beautiful HTML documentation generator with responsive design
-- **CLI Interface**: Typer + Rich powered user experience
-
-Evidence: doc.solution, repo.languages, repo.project
+Evidence: repo.languages, repo.project
 
 ---
 
 ## Key Features
 
-- Deterministic parsing of project source and documentation
-- Branch-aware context from local git history
-- Offline-first rendering with no runtime CDN dependencies
-- JSON schema output suitable for automation
+- Hybrid workflow: `studio` for drafting + `generate` for exports
+- Source-grounded citations with snippet/line provenance
+- Evidence explorer with search/filter/sort and per-slide evidence pinning
+- Self-contained offline HTML deck output
+- Presenter mode with notes, timer, progress timeline, jump controls
+- Slide outline + reorder controls with keyboard shortcuts
+- One-click Studio quality fixes (`Fix This`, `Fix All`) for common quality errors
 
 Visuals:
-![DocGenie](C:\Users\Vladislav Kondratyev\.local\share\hackluminary\image_cache\ba6a2da75d51b5bd.png)
-_DocGenie_
+![Command line interface terminal](C:\Users\Vladislav Kondratyev\.local\share\hackluminary\image_cache\8a3b4754a512b412.png)
+_Command line interface terminal_
 
 Claims:
-- Deterministic parsing of project source and documentation
-- Branch-aware context from local git history
-- Offline-first rendering with no runtime CDN dependencies
-- JSON schema output suitable for automation
+- Hybrid workflow: `studio` for drafting + `generate` for exports
+- Source-grounded citations with snippet/line provenance
+- Evidence explorer with search/filter/sort and per-slide evidence pinning
+- Self-contained offline HTML deck output
+- Presenter mode with notes, timer, progress timeline, jump controls
+- Slide outline + reorder controls with keyboard shortcuts
+- One-click Studio quality fixes (`Fix This`, `Fix All`) for common quality errors
 
-Evidence: repo.features, repo.dependencies, repo.project
-
----
-
-## Technology Stack
-
-- Primary language: Python
-- Language distribution: Python (45), JavaScript (37), HTML (22), CSS (4)
-- Dependencies: click, typer, rich, structlog, tree-sitter-language-pack, gitpython, jinja2, pyyaml
-- Scale: 108 source files, 51,143 lines
-
-Visuals:
-![Python programming language](C:\Users\Vladislav Kondratyev\.local\share\hackluminary\image_cache\da153dc6e7ded43a.png)
-_Python programming language_
-
-Claims:
-- Primary language: Python
-- Language distribution: Python (45), JavaScript (37), HTML (22), CSS (4)
-- Dependencies: click, typer, rich, structlog, tree-sitter-language-pack, gitpython, jinja2, pyyaml
-- Scale: 108 source files, 51,143 lines
-
-Evidence: repo.languages, repo.dependencies, repo.files, repo.lines
+Evidence: doc.features, repo.dependencies, repo.project
 
 ---
 
@@ -124,11 +97,74 @@ Evidence: doc.description, repo.files, repo.lines
 
 ---
 
-# Thank You
+## Technology Stack
 
-DocGenie · Built with Python
+- Primary language: Python
+- Language distribution: Python (52), CSS (2), JavaScript (2), PowerShell (2), HTML (1)
+- Dependencies: click, tomli
+- Scale: 60 source files, 11,433 lines
+
+Visuals:
+![Python programming language](C:\Users\Vladislav Kondratyev\.local\share\hackluminary\image_cache\da153dc6e7ded43a.png)
+_Python programming language_
 
 Claims:
-- DocGenie · Built with Python
+- Primary language: Python
+- Language distribution: Python (52), CSS (2), JavaScript (2), PowerShell (2), HTML (1)
+- Dependencies: click, tomli
+- Scale: 60 source files, 11,433 lines
+
+Evidence: repo.languages, repo.dependencies, repo.files, repo.lines
+
+---
+
+## Future Plans
+
+- Add richer repository analysis for architecture-level insights
+- Expand local model catalog and speed profiles for laptops
+- Improve quality gates with domain-specific heuristics
+- Ship stronger team templates for common hackathon judging tracks
+
+Visuals:
+![Road sign direction](C:\Users\Vladislav Kondratyev\.local\share\hackluminary\image_cache\b01fa1ef5f841e3a.jpg)
+_Road sign direction_
+
+Claims:
+- Add richer repository analysis for architecture-level insights
+- Expand local model catalog and speed profiles for laptops
+- Improve quality gates with domain-specific heuristics
+- Ship stronger team templates for common hackathon judging tracks
+
+Evidence: repo.files
+
+---
+
+## Branch Delta
+
+- Branch: ui-update
+- Base branch: main
+- 1 files changed (other:1).
+- Top changed paths: scripts/git-switch-branch.ps1
+
+Visuals:
+![Git logo](C:\Users\Vladislav Kondratyev\.local\share\hackluminary\image_cache\650c1755912ee12c.png)
+_Git logo_
+
+Claims:
+- Branch: ui-update
+- Base branch: main
+- 1 files changed (other:1).
+- Top changed paths: scripts/git-switch-branch.ps1
+
+Evidence: git.branch, git.base_branch, git.changed_files, git.change_summary
+
+---
+
+# Thank You
+
+HackLuminary v2.2 · Built with Python
+
+Claims:
+- HackLuminary v2.2 · Built with Python
 
 Evidence: repo.languages, doc.title, repo.files, repo.lines

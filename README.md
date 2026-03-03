@@ -91,7 +91,7 @@ hackluminary validate . --mode deterministic
 - `--slides title,problem,solution,demo,impact,tech,future,delta,closing`
 - `--max-slides N`
 - `--docs PATH` (repeatable)
-- `--theme default|dark|minimal|colorful|auto`
+- `--theme default|dark|minimal|colorful|auto|custom`
 - `--mode deterministic|ai|hybrid`
 - `--images off|auto|strict`
 - `--image-dirs PATH` (repeatable, project-relative)
@@ -102,6 +102,7 @@ hackluminary validate . --mode deterministic
 - `--strict-quality` / `--no-strict-quality`
 - `--open`
 - `--copy-output-dir PATH`
+- `--logo PATH`
 - `--bundle`
 - `--debug`
 
@@ -169,7 +170,7 @@ Precedence:
 4. Defaults
 
 Sections:
-- `[general]`: `mode`, `format`, `theme`, `max_slides`, `strict_quality`
+- `[general]`: `mode`, `format`, `theme`, `max_slides`, `strict_quality`, `logo`
 - `[git]`: `base_branch`, `include_branch_context`
 - `[ai]`: `enabled`, `backend`, `model_alias`, `max_tokens`, `top_p`, `temperature`
 - `[output]`: `copy_output_dir`, `open_after_generate`
@@ -179,6 +180,25 @@ Sections:
 - `[ui]`: `density`, `motion`, `code_font_scale`, `presenter_timer_default_min`
 - `[features]`: `studio_enabled`, `production_theme_enabled`, `presenter_pro_enabled`
 - `[privacy]`: `telemetry=false`
+
+### Custom Branding
+
+You can override the built-in themes to match your project's brand identity.
+
+- **Custom Colors**: To use custom colors, set `theme = "custom"` in the `[general]` section of your `hackluminary.toml` file. Then, define your color palette in the `[theme.custom]` section. You can override any of the following default theme keys:
+  - `bg`
+  - `panel`
+  - `panel_alt`
+  - `text`
+  - `muted`
+  - `accent`
+  - `accent2`
+  - `warning`
+  - `danger`
+  - `ok`
+  - `overlay`
+
+- **Logo**: To add a logo to your title slide, specify the path to your logo file in the `logo` field of the `[general]` section in `hackluminary.toml`. You can also use the `--logo` command-line option.
 
 ## JSON schema `2.2`
 
